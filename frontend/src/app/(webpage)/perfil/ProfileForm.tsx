@@ -12,6 +12,7 @@ import { alertService } from "@/services/alertService";
 import { useAuth } from "@/providers/AuthProvider";
 import { getUserById, updateUser } from "@/api/user";
 
+import { COUNTRIES } from "@/lib/countries";
 import StepDisabilityType from "../sos/components/StepDisabilityType";
 import type {
   CommunicationMode,
@@ -32,6 +33,7 @@ type ProfileFormState = {
   fullName: string;
   phone: string;
   zone: string;
+  country: string;
   location: { lat: number; lng: number } | null;
   disabilityType: DisabilityType | null;
   communicationMode: CommunicationMode | null;
@@ -89,6 +91,7 @@ export default function ProfileForm() {
     fullName: user?.fullName ?? "",
     phone: user?.phone ?? "",
     zone: user?.zone ?? "",
+    country: "",
     location: user?.location ?? null,
     disabilityType: null,
     communicationMode: null,
@@ -115,6 +118,7 @@ export default function ProfileForm() {
           fullName: data.fullName ?? prev.fullName,
           phone: data.phone ?? prev.phone,
           zone: data.zone ?? "",
+          country: profile?.country ?? "",
           location: data.location ?? null,
           disabilityType: (profile?.disabilityType as DisabilityType) ?? null,
           communicationMode: (profile?.communicationMode as CommunicationMode) ?? null,
@@ -193,6 +197,7 @@ export default function ProfileForm() {
         fullName: form.fullName.trim(),
         phone: form.phone,
         zone: form.zone.trim() || null,
+        country: form.country,
         location: form.location,
         disabilityType: form.disabilityType,
         communicationMode:
@@ -280,6 +285,21 @@ export default function ProfileForm() {
               value={form.zone}
               onChange={(e) => setForm({ ...form, zone: e.target.value })}
             />
+          </div>
+
+          <div>
+            <Label htmlFor="profile-country" name="País" />
+            <select
+              id="profile-country"
+              className={`${fieldClass} mt-2`}
+              value={form.country}
+              onChange={(e) => setForm({ ...form, country: e.target.value })}
+            >
+              <option value="">Selecciona un país</option>
+              {COUNTRIES.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
           </div>
         </div>
 

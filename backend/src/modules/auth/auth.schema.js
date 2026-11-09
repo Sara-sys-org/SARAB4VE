@@ -101,7 +101,10 @@ const CommonFields = z.object({
 // POST /api/auth/register/citizen
 // ---------------------------------------------------------------------------
 
-const RegisterCitizenBody = CommonFields.extend({}).openapi({
+const RegisterCitizenBody = CommonFields.extend({
+  country: z.string().max(60, "country no puede exceder 60 caracteres").optional()
+    .openapi({ example: "Venezuela", description: "País" }),
+}).openapi({
   description: "Payload para registrar un ciudadano (aprobación automática)",
   example: {
     fullName: "María González",
@@ -110,6 +113,7 @@ const RegisterCitizenBody = CommonFields.extend({}).openapi({
     password: "unaClaveSegura2024!",
     location: { lat: 10.4806, lng: -66.9036 },
     zone: "Caracas - Zona 1",
+    country: "Venezuela",
   },
 });
 
@@ -518,6 +522,9 @@ function normalizeRegisterCitizen(payload) {
       status: "approved",
       location: payload.location || null,
       zone: payload.zone?.trim() || null,
+    },
+    profile: {
+      country: payload.country?.trim() || null,
     },
   };
 }

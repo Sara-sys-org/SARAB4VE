@@ -350,6 +350,31 @@ async function insertOrganizationService(client, organizationId, serviceId) {
 }
 
 // ---------------------------------------------------------------------------
+// INSERT — citizen_profiles (solo país al registrarse; la info de
+// discapacidad se completa después desde /perfil, ver users.repository.js
+// upsertCitizenProfile)
+// ---------------------------------------------------------------------------
+
+const INSERT_CITIZEN_PROFILE = `
+  INSERT INTO citizen_profiles (user_id, country)
+  VALUES ($1, $2)
+  RETURNING user_id AS "userId", country, created_at AS "createdAt", updated_at AS "updatedAt"
+`;
+
+/**
+ * Inserta el país de un ciudadano recién registrado. Los campos de
+ * discapacidad se agregan más tarde (upsertCitizenProfile en users.repository.js).
+ * @param {import("pg").PoolClient} client — Cliente de transacción
+ * @param {string} userId
+ * @param {{ country: string|null }} profile
+ * @returns {Promise<Object>}
+ */
+async function insertCitizenProfile(client, userId, profile) {
+  const result = await client.query(INSERT_CITIZEN_PROFILE, [userId, profile.country]);
+  return result.rows[0];
+}
+
+// ---------------------------------------------------------------------------
 // INSERT — volunteer_profiles (perfil extendido)
 // ---------------------------------------------------------------------------
 
@@ -560,6 +585,7 @@ module.exports = {
   USER_DETAILS_SELECT_COLUMNS,
   insertUser,
   insertUserDetails,
+  insertCitizenProfile,
   insertOrganizationProfile,
   insertLegalRepresentative,
   insertOrganizationDisabilityType,

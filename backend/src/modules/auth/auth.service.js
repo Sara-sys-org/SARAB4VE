@@ -137,10 +137,16 @@ async function registerCitizen(payload, schema, repository) {
 
   try {
     const user = await repository.withTransaction(async (client) => {
-      return repository.insertUser(client, {
+      const insertedUser = await repository.insertUser(client, {
         ...normalized.user,
         passwordHash,
       });
+
+      if (normalized.profile.country) {
+        await repository.insertCitizenProfile(client, insertedUser.id, normalized.profile);
+      }
+
+      return insertedUser;
     });
 
     const token = issueToken(user);

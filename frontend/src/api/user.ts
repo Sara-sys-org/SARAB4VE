@@ -90,6 +90,7 @@ export type UpdateUserPayload = {
     disabilityType?: DisabilityType | null;
     disabilitySubcategory?: string | null;
     communicationMode?: string | null;
+    country?: string;
 };
 
 /**

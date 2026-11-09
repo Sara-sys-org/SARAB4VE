@@ -279,6 +279,7 @@ export interface CitizenProfile {
     disabilityType: DisabilityType | null;
     disabilitySubcategory: string | null;
     communicationMode: string | null;
+    country: string | null;
     createdAt: string;
     updatedAt: string;
 }

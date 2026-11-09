@@ -20,6 +20,7 @@ export type CitizenPayload = {
   password: string;
   location?: { lat: number; lng: number } | null;
   zone?: string | null;
+  country?: string;
   /** Indicador local de aceptación; no se envía al backend. */
   acceptedTerms?: boolean;
 };

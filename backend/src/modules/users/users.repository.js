@@ -232,6 +232,7 @@ const CITIZEN_PROFILE_SELECT = `
   disability_type AS "disabilityType",
   disability_subcategory AS "disabilitySubcategory",
   communication_mode AS "communicationMode",
+  country,
   created_at AS "createdAt",
   updated_at AS "updatedAt"
 `;
@@ -252,37 +253,44 @@ async function findCitizenProfileById(userId) {
   return result.rows[0] || null;
 }
 
+/** Mapa campo-de-servicio → columna real de citizen_profiles. */
+const CITIZEN_PROFILE_COLUMN_MAP = {
+  disabilityType: "disability_type",
+  disabilitySubcategory: "disability_subcategory",
+  communicationMode: "communication_mode",
+  country: "country",
+};
+
 /**
- * Crea o actualiza el perfil de discapacidad de un ciudadano.
- * Recibe los tres campos completos (el frontend los envía juntos), por lo
- * que un `null` limpia explícitamente el valor correspondiente.
+ * Crea o actualiza el perfil de un ciudadano (discapacidad + país).
+ * Solo toca las columnas cuyo campo venga definido (`!== undefined`) en
+ * `profile` — así, actualizar solo el país no borra la discapacidad ya
+ * guardada, y viceversa. Un `null` explícito sí limpia esa columna
+ * puntual; omitir el campo la deja intacta.
  *
  * @param {import("pg").PoolClient} client — Cliente de transacción
  * @param {string} userId
- * @param {{ disabilityType: string|null, disabilitySubcategory: string|null, communicationMode: string|null }} profile
+ * @param {{ disabilityType?: string|null, disabilitySubcategory?: string|null, communicationMode?: string|null, country?: string|null }} profile
  * @returns {Promise<Object>} — Fila insertada/actualizada
  */
 async function upsertCitizenProfile(client, userId, profile) {
+  const providedFields = Object.keys(CITIZEN_PROFILE_COLUMN_MAP)
+    .filter((field) => profile[field] !== undefined);
+
+  const columns = providedFields.map((field) => CITIZEN_PROFILE_COLUMN_MAP[field]);
+  const values = providedFields.map((field) => profile[field]);
+  const placeholders = values.map((_, i) => `$${i + 2}`);
+  const updateSetClauses = columns.map((column) => `${column} = EXCLUDED.${column}`);
+
   const query = `
-    INSERT INTO citizen_profiles (
-      user_id, disability_type, disability_subcategory, communication_mode
-    )
-    VALUES ($1, $2, $3, $4)
+    INSERT INTO citizen_profiles (user_id${columns.length ? ", " + columns.join(", ") : ""})
+    VALUES ($1${placeholders.length ? ", " + placeholders.join(", ") : ""})
     ON CONFLICT (user_id) DO UPDATE SET
-      disability_type = EXCLUDED.disability_type,
-      disability_subcategory = EXCLUDED.disability_subcategory,
-      communication_mode = EXCLUDED.communication_mode,
-      updated_at = NOW()
+      ${[...updateSetClauses, "updated_at = NOW()"].join(",\n      ")}
     RETURNING ${CITIZEN_PROFILE_SELECT}
   `;
 
-  const result = await (client || db).query(query, [
-    userId,
-    profile.disabilityType ?? null,
-    profile.disabilitySubcategory ?? null,
-    profile.communicationMode ?? null,
-  ]);
-
+  const result = await (client || db).query(query, [userId, ...values]);
   return result.rows[0] || null;
 }
 

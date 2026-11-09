@@ -103,6 +103,12 @@ export default function SOSPage() {
   const [disabilityCardFile, setDisabilityCardFile] = useState<File | null>(null);
   const [voiceNote, setVoiceNote] = useState<VoiceNote | null>(null);
   const [profileLocation, setProfileLocation] = useState<{ lat: number; lng: number } | null>(null);
+  // País guardado en la cuenta del ciudadano (citizen_profiles.country) —
+  // si existe, prevalece sobre lo que haya en el campo "país" del
+  // formulario al enviar, aunque este también tenga un valor (ver payload
+  // más abajo). Se guarda aparte de `form.country` porque ese sí se puede
+  // editar libremente en pantalla sin perder la prioridad de la cuenta.
+  const [accountCountry, setAccountCountry] = useState<string | null>(null);
 
   // Si hay sesión iniciada, precarga los datos del perfil en la solicitud.
   // Solo rellena los campos que la persona aún no haya tocado.
@@ -114,6 +120,7 @@ export default function SOSPage() {
       .then((profile) => {
         if (cancelled) return;
         setProfileLocation(profile.location ?? null);
+        setAccountCountry(profile.citizenProfile?.country ?? null);
         setForm((current) => {
           const { first, last } = splitFullName(profile.fullName);
           const next = { ...current };
@@ -132,6 +139,10 @@ export default function SOSPage() {
           }
 
           if (!current.address && profile.zone) next.address = profile.zone;
+
+          if (!current.country && profile.citizenProfile?.country) {
+            next.country = profile.citizenProfile.country;
+          }
 
           if (!current.disability_type && profile.citizenProfile?.disabilityType) {
             next.disability_type =
@@ -238,7 +249,9 @@ export default function SOSPage() {
       longitude,
       urgency: form.urgency,
       address: form.address,
-      country: form.country,
+      // Si la cuenta del ciudadano ya tiene país guardado, prevalece sobre
+      // lo que haya quedado en el campo del formulario (ver accountCountry).
+      country: accountCountry || form.country,
       gender: form.gender,
       age: form.age ? Number(form.age) : null,
       disabilityType: form.disability_type,
