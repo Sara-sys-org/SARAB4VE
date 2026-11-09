@@ -4,6 +4,7 @@
  */
 const bcrypt = require("bcrypt");
 const { ROLES, STATUSES } = require("./users.schema");
+const { hasStoredFile } = require("../../services/storage");
 
 /** Costo del hash bcrypt (12 rondas ≈ buena seguridad sin ser muy lento). */
 const BCRYPT_ROUNDS = 12;
@@ -19,6 +20,19 @@ const BCRYPT_ROUNDS = 12;
  */
 async function hashPassword(plainPassword) {
   return bcrypt.hash(plainPassword, BCRYPT_ROUNDS);
+}
+
+/**
+ * Agrega `hasFile` a cada documento: true solo si tiene archivo vinculado y
+ * ese archivo existe en R2. El panel lo usa para habilitar o bloquear las
+ * acciones de descargar, reemplazar y eliminar.
+ * @param {Array<{ storageKey: string|null }>} documents
+ * @returns {Promise<Array>}
+ */
+async function withFileStatus(documents) {
+  return Promise.all(
+    documents.map(async (doc) => ({ ...doc, hasFile: await hasStoredFile(doc.storageKey) })),
+  );
 }
 
 /**
@@ -364,7 +378,7 @@ async function loadOrganizationProfileData(organizationId, repository) {
   const disabilityTypes = await repository.findOrganizationDisabilityTypes(organizationId);
   const services = await repository.findOrganizationServices(organizationId);
   const verification = await repository.findVerificationByOwner(organizationId);
-  const documents = await repository.findVerificationDocuments(organizationId);
+  const documents = await withFileStatus(await repository.findVerificationDocuments(organizationId));
 
   return {
     data: {
@@ -559,7 +573,7 @@ async function loadVolunteerProfileData(volunteerId, repository) {
   const interestAreas = await repository.findVolunteerInterestAreas(volunteerId);
   const experience = await repository.findVolunteerExperience(volunteerId);
   const verification = await repository.findVerificationByOwner(volunteerId);
-  const documents = await repository.findVerificationDocuments(volunteerId);
+  const documents = await withFileStatus(await repository.findVerificationDocuments(volunteerId));
 
   return {
     data: {
