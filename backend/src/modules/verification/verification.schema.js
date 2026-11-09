@@ -23,6 +23,35 @@ const VERIFICATION_STATUSES = ["entregada", "en_estudio", "rechazada", "aceptada
 /** Estados de documentos individuales. */
 const DOCUMENT_STATUSES = ["pending", "approved", "rejected"];
 
+/** Formatos permitidos para documentos de verificación (mismos que el formulario de registro). */
+const ALLOWED_DOCUMENT_EXTENSIONS = ["pdf", "jpg", "jpeg", "png", "doc", "docx"];
+const ALLOWED_DOCUMENT_MIME_TYPES = [
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+];
+/** Sin Office instalado, algunos navegadores envían los Word como tipo genérico. */
+const WORD_EXTENSIONS = ["doc", "docx"];
+const GENERIC_MIME_TYPE = "application/octet-stream";
+const DOCUMENT_FORMAT_ERROR = "Formato no permitido. Usa PDF, JPG, PNG o Word.";
+const DOCUMENT_SIZE_ERROR = "El archivo es muy grande. El máximo es 10 MB.";
+
+/**
+ * Indica si un archivo tiene extensión y MIME permitidos (se exigen ambos).
+ * @param {string} fileName
+ * @param {string} mimeType
+ * @returns {boolean}
+ */
+function isAllowedDocumentFile(fileName, mimeType) {
+  const ext = String(fileName || "").split(".").pop().toLowerCase();
+  const mime = String(mimeType || "").toLowerCase();
+  if (!ALLOWED_DOCUMENT_EXTENSIONS.includes(ext)) return false;
+  return ALLOWED_DOCUMENT_MIME_TYPES.includes(mime)
+    || (WORD_EXTENSIONS.includes(ext) && mime === GENERIC_MIME_TYPE);
+}
+
 /** Tipos de voluntario. */
 const VOLUNTEER_TYPES = ["professional", "non_professional"];
 
@@ -229,6 +258,9 @@ const DocumentUploadBody = z.object({
     .min(1, "mimeType es requerido")
     .max(100)
     .openapi({ example: "application/pdf", description: "MIME type del archivo" }),
+}).refine((data) => isAllowedDocumentFile(data.fileName, data.mimeType), {
+  message: DOCUMENT_FORMAT_ERROR,
+  path: ["file"],
 }).openapi({
   description: "Payload para solicitar URL prefirmada de subida de documento",
   example: {
@@ -236,6 +268,22 @@ const DocumentUploadBody = z.object({
     fileName: "estatutos.pdf",
     mimeType: "application/pdf",
   },
+});
+
+// ---------------------------------------------------------------------------
+// PUT /api/verification-documents/:id/file (admin)
+// ---------------------------------------------------------------------------
+
+const DocumentFileBody = z.object({
+  fileName: z.string()
+    .min(1, "El archivo es requerido.")
+    .max(255, "El nombre del archivo es muy largo (máximo 255 caracteres)."),
+  mimeType: z.string()
+    .min(1, DOCUMENT_FORMAT_ERROR)
+    .max(100),
+}).refine((data) => isAllowedDocumentFile(data.fileName, data.mimeType), {
+  message: DOCUMENT_FORMAT_ERROR,
+  path: ["file"],
 });
 
 // ---------------------------------------------------------------------------
@@ -349,7 +397,10 @@ const VerificationDocumentResponse = z.object({
   id: z.number().int().openapi({ example: 1 }),
   ownerId: z.string().uuid().openapi({ example: "550e8400-e29b-41d4-a716-446655440000" }),
   documentTypeId: z.number().int(),
-  storageKey: z.string().openapi({ example: "documents_verifications/uuid/17385980149240-abc123.pdf" }),
+  storageKey: z.string().nullable().openapi({
+    example: "documents_verifications/uuid/17385980149240-abc123.pdf",
+    description: "null si el administrador eliminó el archivo",
+  }),
   status: z.string().openapi({ example: "pending" }),
   rejectionReason: z.string().nullable().optional(),
   uploadedAt: z.string().datetime(),
@@ -436,11 +487,17 @@ module.exports = {
   ENTITY_TYPES,
   CATALOG_TYPES,
   ALLOWED_TRANSITIONS,
+  ALLOWED_DOCUMENT_EXTENSIONS,
+  ALLOWED_DOCUMENT_MIME_TYPES,
+  DOCUMENT_FORMAT_ERROR,
+  DOCUMENT_SIZE_ERROR,
+  isAllowedDocumentFile,
 
   // Schemas Zod — request bodies
   OrganizationRegisterBody,
   VolunteerRegisterBody,
   DocumentUploadBody,
+  DocumentFileBody,
   TransitionRequestBody,
   DocumentReviewBody,
 
