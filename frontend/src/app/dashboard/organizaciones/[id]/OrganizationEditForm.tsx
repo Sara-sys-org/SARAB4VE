@@ -9,6 +9,7 @@ import { alertService } from "@/services/alertService";
 import { updateOrganizationProfile } from "@/api/user";
 import { getCatalog } from "@/api/verification";
 import type { CatalogItem, OrganizationProfileResponse } from "@/types/index";
+import { COUNTRIES } from "@/lib/countries";
 import {
     getEditFieldErrors,
     buildUpdatePayload,
@@ -422,14 +423,23 @@ export default function OrganizationEditForm({ perfil, onCancel, onSaved }: Orga
                 />
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <TextField
-                        id="org-edit-country"
-                        label="País"
-                        value={formData.country}
-                        onChange={(v) => update("country", v)}
-                        error={errors.country}
-                        maxLength={60}
-                    />
+                    <div>
+                        <Label htmlFor="org-edit-country" name="País" />
+                        <select
+                            id="org-edit-country"
+                            className={`${fieldClass} mt-2 ${errors.country ? "border-error" : ""}`}
+                            value={formData.country}
+                            onChange={(e) => update("country", e.target.value)}
+                            aria-invalid={!!errors.country}
+                            aria-describedby={errors.country ? "org-edit-country-err" : undefined}
+                        >
+                            <option value="">Sin especificar</option>
+                            {COUNTRIES.map((c) => (
+                                <option key={c} value={c}>{c}</option>
+                            ))}
+                        </select>
+                        <FieldError id="org-edit-country-err" message={errors.country} />
+                    </div>
                     <TextField
                         id="org-edit-province"
                         label="Provincia"

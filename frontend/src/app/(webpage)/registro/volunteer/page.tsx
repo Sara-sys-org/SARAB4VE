@@ -18,6 +18,7 @@ import { getDocumentChecklist, uploadVerificationDocument } from "@/api/verifica
 import { buildVolunteerRegisterPayload } from "./mapper";
 import { volunteerSchema, getFieldErrors, type VolunteerFormData } from "./schema";
 import { alertService } from "@/services/alertService";
+import { COUNTRIES } from "@/lib/countries";
 import dynamic from "next/dynamic";
 import "react-phone-number-input/style.css"
 import PhoneField from "@/components/ui/PhoneField";
@@ -412,15 +413,19 @@ export default function VolunteerRegister() {
 
                         <div>
                             <Label htmlFor={ids.country} name="País" required />
-                            <input
+                            <select
                                 id={ids.country}
                                 className={`${fieldClass} mt-2 ${errors.country ? "border-error" : ""}`}
-                                placeholder="Ej. Venezuela"
                                 value={formData.country}
                                 onChange={(e) => setFormData({ ...formData, country: e.target.value })}
                                 aria-invalid={!!errors.country}
                                 aria-describedby={errors.country ? `${ids.country}-err` : undefined}
-                            />
+                            >
+                                <option value="">Selecciona un país</option>
+                                {COUNTRIES.map((c) => (
+                                    <option key={c} value={c}>{c}</option>
+                                ))}
+                            </select>
                             {errors.country && (
                                 <p id={`${ids.country}-err`} className={errorClass}>{errors.country}</p>
                             )}

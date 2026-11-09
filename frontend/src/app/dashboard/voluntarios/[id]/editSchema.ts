@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { AvailabilityMode, UpdateVolunteerProfilePayload, VolunteerProfileResponse, VolunteerType } from "@/types";
+import { COUNTRIES } from "@/lib/countries";
 
 // Validación espejo del formulario de registro (mismas reglas del backend),
 // pero todos los campos opcionales: editar no debe bloquear si un campo viene
@@ -132,7 +133,7 @@ export const volunteerEditSchema = z.object({
     ),
     birthDate: optionalBirthDate,
     address: optionalMinText(5, 300, "Ingresa una dirección válida", "La dirección es demasiado larga"),
-    country: optionalText(60, "El país no puede exceder 60 caracteres"),
+    country: z.enum(["", ...COUNTRIES], "Selecciona un país válido").optional(),
     profession: optionalText(100, "La profesión no puede exceder 100 caracteres"),
     languages: z.string().trim().optional(),
     availabilityMode: z

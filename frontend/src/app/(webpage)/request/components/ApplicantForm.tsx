@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRef, useState, type ChangeEvent, type FocusEvent, type FormEvent } from "react";
+import { COUNTRIES } from "@/lib/countries";
 
 export type SOSFormValues = {
   requester_name: string;
@@ -242,7 +243,12 @@ export default function ClientForm({
         <label className="text-sm font-semibold text-on-surface mb-1">País</label>
         <div className="relative">
           <span className="material-symbols-rounded absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none" aria-hidden="true">public</span>
-          <input name="country" value={form.country} onChange={onChange} type="text" autoComplete="country-name" placeholder="Ej: Venezuela" className="w-full rounded-xl border border-outline-variant bg-surface-container-low pl-12 pr-4 py-3.5" />
+          <select name="country" value={form.country} onChange={onChange} className="w-full rounded-xl border border-outline-variant bg-surface-container-low pl-12 pr-4 py-3.5">
+            <option value="">Selecciona un país</option>
+            {COUNTRIES.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
         </div>
       </div>
 

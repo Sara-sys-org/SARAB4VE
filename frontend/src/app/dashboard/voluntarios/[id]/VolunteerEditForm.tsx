@@ -9,6 +9,7 @@ import { alertService } from "@/services/alertService";
 import { updateVolunteerProfile } from "@/api/user";
 import { getCatalog } from "@/api/verification";
 import { DAYS_WEEKEND, SKILLS } from "@/types";
+import { COUNTRIES } from "@/lib/countries";
 import type {
     AvailabilityMode,
     CatalogItem,
@@ -65,6 +66,11 @@ const YES_NO_OPTIONS: Choice[] = [
     { value: "", label: "Sin especificar" },
     { value: "true", label: "Sí" },
     { value: "false", label: "No" },
+];
+
+const COUNTRY_OPTIONS: Choice[] = [
+    { value: "", label: "Sin especificar" },
+    ...COUNTRIES.map((c) => ({ value: c, label: c })),
 ];
 
 /** Añade al catálogo los valores legados del perfil para no perderlos ni ocultarlos. */
@@ -480,13 +486,13 @@ export default function VolunteerEditForm({ perfil, onCancel, onSaved }: Volunte
                         error={errors.address}
                         placeholder="Ej. Av. Principal 123"
                     />
-                    <TextField
+                    <SelectField
                         id="vol-edit-country"
                         label="País"
                         value={formData.country}
+                        options={COUNTRY_OPTIONS}
                         onChange={(v) => update("country", v)}
                         error={errors.country}
-                        placeholder="Ej. Venezuela"
                     />
                     <TextField
                         id="vol-edit-profession"
