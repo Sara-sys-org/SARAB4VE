@@ -341,7 +341,7 @@ async function getDownloadUrl(documentId, requester, repository) {
   }
 
   if (!document.storageKey) {
-    return { errors: ["Este documento no tiene clave de almacenamiento"], status: 400 };
+    return { errors: ["Este documento no tiene archivo cargado."], status: 400 };
   }
 
   const { getPresignedDownloadUrl } = require("../../services/storage");
@@ -374,6 +374,158 @@ async function reviewDocument(documentId, review, reviewerId, repository) {
   );
 
   return { data: updated };
+}
+
+/** Mensajes para el administrador al subir o eliminar archivos (sin lenguaje técnico). */
+const DOCUMENT_FILE_MESSAGES = {
+  notFound: "Este documento ya no existía.",
+  added: "Documento agregado correctamente.",
+  replaced: "Documento reemplazado correctamente.",
+  previousMissing: "Se guardó el nuevo documento. El archivo anterior ya no existía.",
+  replaceFailed: "No se pudo reemplazar el documento. Se mantiene el archivo anterior. Inténtalo de nuevo.",
+  addFailed: "No se pudo agregar el documento. Inténtalo de nuevo.",
+  deleted: "Archivo eliminado. Puedes agregar uno nuevo cuando lo necesites.",
+  deletedMissing: "El archivo ya no existía. El documento quedó sin archivo.",
+  alreadyEmpty: "Este documento ya no tenía archivo.",
+  deleteFailed: "No se pudo eliminar el archivo. Inténtalo de nuevo.",
+};
+
+/** Intentos para borrar de R2 un archivo nuevo cuando se revierte un reemplazo. */
+const CLEANUP_ATTEMPTS = 3;
+const CLEANUP_DELAY_MS = 500;
+
+/**
+ * Borra un objeto de R2 reintentando ante fallos transitorios, para no dejar
+ * archivos sueltos cuando se revierte un reemplazo.
+ * @param {Object} storage
+ * @param {string} storageKey
+ * @returns {Promise<boolean>} true si se borró
+ */
+async function deleteWithRetry(storage, storageKey) {
+  for (let attempt = 1; attempt <= CLEANUP_ATTEMPTS; attempt++) {
+    try {
+      await storage.deleteDocument(storageKey);
+      return true;
+    } catch (error) {
+      console.error(`[verification] Intento ${attempt}/${CLEANUP_ATTEMPTS} de borrar ${storageKey} falló:`, error.message);
+      if (attempt < CLEANUP_ATTEMPTS) {
+        await new Promise((resolve) => setTimeout(resolve, CLEANUP_DELAY_MS * attempt));
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Sube un archivo a un documento existente (solo admin). Sirve para
+ * agregar (documento sin archivo) y para reemplazar: el documento conserva
+ * su tipo y su dueño; solo cambia el archivo, que puede tener otra extensión.
+ *
+ * Todo o nada: si falla la subida, la actualización en la base o el borrado
+ * del archivo anterior en R2, se hace rollback, se borra el archivo nuevo
+ * (con reintentos) y el documento queda exactamente como estaba.
+ *
+ * @param {number} documentId
+ * @param {{ fileName: string, mimeType: string, fileBuffer: Buffer }} payload
+ * @param {Object} repository
+ * @returns {Promise<import("./verification.types").ServiceResult>}
+ */
+async function uploadDocumentFile(documentId, payload, repository) {
+  const storage = require("../../services/storage");
+
+  const document = await repository.findDocumentById(documentId);
+  if (!document) {
+    return { errors: [DOCUMENT_FILE_MESSAGES.notFound], status: 404 };
+  }
+
+  const previousKey = document.storageKey;
+  const previousExists = await storage.hasStoredFile(previousKey);
+  const failedMessage = previousKey ? DOCUMENT_FILE_MESSAGES.replaceFailed : DOCUMENT_FILE_MESSAGES.addFailed;
+
+  let storageKey;
+  try {
+    ({ storageKey } = await storage.uploadDocument(
+      payload.fileBuffer,
+      payload.fileName,
+      payload.mimeType,
+      document.ownerId,
+    ));
+  } catch (error) {
+    console.error(`[verification] Error subiendo archivo del documento ${documentId}:`, error);
+    return { errors: [failedMessage], status: 502 };
+  }
+
+  let updated;
+  try {
+    updated = await repository.withTransaction(async (client) => {
+      const row = await repository.setDocumentFile(client, documentId, storageKey);
+      if (previousExists) {
+        await storage.deleteDocument(previousKey);
+      }
+      return row;
+    });
+  } catch (error) {
+    console.error(`[verification] Error reemplazando archivo del documento ${documentId}:`, error);
+    const cleaned = await deleteWithRetry(storage, storageKey);
+    if (!cleaned) {
+      console.error(`[verification] ARCHIVO HUÉRFANO en R2 tras rollback (documento ${documentId}): ${storageKey}`);
+    }
+    return { errors: [failedMessage], status: 502 };
+  }
+
+  const data = { ...updated, hasFile: true };
+
+  if (!previousKey) {
+    return { data, message: DOCUMENT_FILE_MESSAGES.added };
+  }
+  if (!previousExists) {
+    return { data, notice: DOCUMENT_FILE_MESSAGES.previousMissing };
+  }
+  return { data, message: DOCUMENT_FILE_MESSAGES.replaced };
+}
+
+/**
+ * Elimina el archivo de un documento (solo admin). El documento se
+ * conserva sin archivo (storage_key = NULL) para que siga apareciendo en
+ * el panel y se pueda agregar uno nuevo más adelante.
+ *
+ * @param {number} documentId
+ * @param {Object} repository
+ * @returns {Promise<import("./verification.types").ServiceResult>}
+ */
+async function deleteDocumentFile(documentId, repository) {
+  const storage = require("../../services/storage");
+
+  const document = await repository.findDocumentById(documentId);
+  if (!document) {
+    return { errors: [DOCUMENT_FILE_MESSAGES.notFound], status: 404 };
+  }
+  if (!document.storageKey) {
+    return { errors: [DOCUMENT_FILE_MESSAGES.alreadyEmpty], status: 409 };
+  }
+
+  const fileExists = await storage.hasStoredFile(document.storageKey);
+
+  let updated;
+  try {
+    updated = await repository.withTransaction(async (client) => {
+      const row = await repository.setDocumentFile(client, documentId, null);
+      if (fileExists) {
+        await storage.deleteDocument(document.storageKey);
+      }
+      return row;
+    });
+  } catch (error) {
+    console.error(`[verification] Error eliminando archivo del documento ${documentId}:`, error);
+    return { errors: [DOCUMENT_FILE_MESSAGES.deleteFailed], status: 502 };
+  }
+
+  const data = { ...updated, hasFile: false };
+
+  if (!fileExists) {
+    return { data, notice: DOCUMENT_FILE_MESSAGES.deletedMissing };
+  }
+  return { data, message: DOCUMENT_FILE_MESSAGES.deleted };
 }
 
 // ---------------------------------------------------------------------------
@@ -582,6 +734,8 @@ module.exports = {
   getDocumentChecklist,
   getDownloadUrl,
   reviewDocument,
+  uploadDocumentFile,
+  deleteDocumentFile,
   transitionVerification,
   getCatalog,
   listAdminVerifications,

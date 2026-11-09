@@ -1953,6 +1953,108 @@ registry.registerPath({
   },
 });
 
+const DocumentFileResponse = z.object({
+  data: VerificationDocumentResponse.extend({ hasFile: z.boolean() }),
+  message: z.string().optional().openapi({ description: "Mensaje de éxito para mostrar al usuario" }),
+  notice: z.string().optional().openapi({ description: "Aviso: la operación salió bien pero hay algo que advertir" }),
+});
+
+const DocumentIdParams = z.object({
+  id: z.string().openapi({ example: "1", description: "ID numérico del documento" }),
+});
+
+registry.registerPath({
+  method: "put",
+  path: "/api/verification-documents/{id}/file",
+  summary: "Agregar o reemplazar el archivo de un documento (admin)",
+  description: [
+    "Sube un archivo nuevo (multipart/form-data, campo 'file') al documento indicado.",
+    "El documento conserva su tipo y su dueño; la extensión puede cambiar.",
+    "Formatos: PDF, JPG, PNG, Word (.doc/.docx). Máximo 10 MB. El archivo anterior se elimina de R2",
+    "y el documento vuelve a 'pending'. Si algo falla, no se cambia nada.",
+    "Solo accesible por administradores.",
+  ].join(" "),
+  tags: ["Verification"],
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: DocumentIdParams,
+    body: {
+      content: {
+        "multipart/form-data": {
+          schema: z.object({ file: z.any().openapi({ type: "string", format: "binary" }) }),
+        },
+      },
+      required: true,
+    },
+  },
+  responses: {
+    200: {
+      description: "Archivo guardado",
+      content: { "application/json": { schema: DocumentFileResponse } },
+    },
+    400: {
+      description: "Formato no permitido, archivo muy grande o sin archivo",
+      content: { "application/json": { schema: ErrorResponse } },
+    },
+    401: {
+      description: "No autenticado",
+      content: { "application/json": { schema: ErrorResponse } },
+    },
+    403: {
+      description: "Acceso denegado — solo administradores",
+      content: { "application/json": { schema: ErrorResponse } },
+    },
+    404: {
+      description: "Documento no encontrado",
+      content: { "application/json": { schema: ErrorResponse } },
+    },
+    502: {
+      description: "No se pudo guardar el archivo en el almacenamiento (no se cambió nada)",
+      content: { "application/json": { schema: ErrorResponse } },
+    },
+  },
+});
+
+registry.registerPath({
+  method: "delete",
+  path: "/api/verification-documents/{id}/file",
+  summary: "Eliminar el archivo de un documento (admin)",
+  description: [
+    "Elimina el archivo de R2 y deja el documento sin archivo (storage_key NULL).",
+    "El documento se conserva para poder agregar un archivo nuevo más adelante.",
+    "Solo accesible por administradores.",
+  ].join(" "),
+  tags: ["Verification"],
+  security: [{ bearerAuth: [] }],
+  request: { params: DocumentIdParams },
+  responses: {
+    200: {
+      description: "Archivo eliminado",
+      content: { "application/json": { schema: DocumentFileResponse } },
+    },
+    401: {
+      description: "No autenticado",
+      content: { "application/json": { schema: ErrorResponse } },
+    },
+    403: {
+      description: "Acceso denegado — solo administradores",
+      content: { "application/json": { schema: ErrorResponse } },
+    },
+    404: {
+      description: "Documento no encontrado",
+      content: { "application/json": { schema: ErrorResponse } },
+    },
+    409: {
+      description: "El documento ya no tenía archivo",
+      content: { "application/json": { schema: ErrorResponse } },
+    },
+    502: {
+      description: "No se pudo eliminar el archivo del almacenamiento (no se cambió nada)",
+      content: { "application/json": { schema: ErrorResponse } },
+    },
+  },
+});
+
 // ── Panel de administración ─────────────────────────────────────────────
 
 registry.registerPath({

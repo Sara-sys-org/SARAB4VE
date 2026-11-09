@@ -781,17 +781,23 @@ async function findVerificationByOwner(ownerId) {
  * @returns {Promise<Array>}
  */
 async function findVerificationDocuments(ownerId) {
+  // Un documento por tipo (el más reciente), para no mostrar subidas antiguas
+  // duplicadas. Se incluyen los documentos sin archivo (storage_key NULL).
   const query = `
-    SELECT vd.id, vd.document_type_id AS "documentTypeId",
-           vd.storage_key AS "storageKey", vd.status,
-           vd.rejection_reason AS "rejectionReason",
-           vd.uploaded_at AS "uploadedAt",
-           vd.reviewed_by AS "reviewedBy", vd.reviewed_at AS "reviewedAt",
-           dt.code AS "documentTypeCode", dt.name AS "documentTypeName"
-    FROM verification_documents vd
-    JOIN document_types dt ON dt.id = vd.document_type_id
-    WHERE vd.owner_id = $1
-    ORDER BY vd.uploaded_at ASC
+    SELECT * FROM (
+      SELECT DISTINCT ON (vd.document_type_id)
+             vd.id, vd.document_type_id AS "documentTypeId",
+             vd.storage_key AS "storageKey", vd.status,
+             vd.rejection_reason AS "rejectionReason",
+             vd.uploaded_at AS "uploadedAt",
+             vd.reviewed_by AS "reviewedBy", vd.reviewed_at AS "reviewedAt",
+             dt.code AS "documentTypeCode", dt.name AS "documentTypeName"
+      FROM verification_documents vd
+      JOIN document_types dt ON dt.id = vd.document_type_id
+      WHERE vd.owner_id = $1
+      ORDER BY vd.document_type_id, vd.id DESC
+    ) latest
+    ORDER BY latest."documentTypeId" ASC
   `;
   const result = await db.query(query, [ownerId]);
   return result.rows;

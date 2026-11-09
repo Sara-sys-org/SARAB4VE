@@ -868,7 +868,7 @@ export default function VolunteerRegister() {
                                             <input
                                                 id={fileId}
                                                 type="file"
-                                                accept=".pdf,.jpg,.jpeg,.png"
+                                                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
                                                 className="mt-2 w-full text-sm text-on-surface-variant file:mr-3 file:rounded-lg file:border-0 file:bg-primary-fixed file:px-3 file:py-2 file:text-sm file:font-semibold file:text-primary hover:file:opacity-90"
                                                 onChange={(e) => handleDocumentChange(doc.id, e.target.files?.[0] ?? null)}
                                             />

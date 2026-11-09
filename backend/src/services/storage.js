@@ -4,6 +4,8 @@
  * Expone:
  *   - uploadAudio(fileBuffer, fileName, mimeType): sube un audio a R2 y retorna la URL pública.
  *   - uploadDocument(fileBuffer, fileName, mimeType, ownerId): sube un documento de verificación a R2.
+ *   - documentExists(storageKey): indica si un objeto existe en R2.
+ *   - deleteDocument(storageKey): elimina un objeto de R2.
  *
  * Requiere las variables de entorno:
  *   R2_ENDPOINT       — endpoint S3 de R2 (ej: https://<id>.r2.cloudflarestorage.com)
@@ -13,7 +15,13 @@
  *   R2_PUBLIC_URL     — URL pública base para los objetos (ej: https://pub-<hash>.r2.dev)
  */
 
-const { S3Client, PutObjectCommand, GetObjectCommand } = require("@aws-sdk/client-s3");
+const {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+  DeleteObjectCommand,
+} = require("@aws-sdk/client-s3");
 const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 
 // ---------------------------------------------------------------------------
@@ -165,4 +173,85 @@ async function getPresignedDownloadUrl(storageKey, expiresIn = 3600) {
   return signedUrl;
 }
 
-module.exports = { uploadAudio, uploadDocument, getPresignedDownloadUrl };
+// ---------------------------------------------------------------------------
+// documentExists
+// ---------------------------------------------------------------------------
+
+/**
+ * Indica si un objeto existe en R2.
+ *
+ * @param {string} storageKey — Key del objeto en R2
+ * @returns {Promise<boolean>} true si existe, false si R2 responde 404
+ * @throws {Error} si R2 no está configurado o falla por otro motivo
+ */
+async function documentExists(storageKey) {
+  const client = getClient();
+
+  if (!client) {
+    throw new Error("R2 no está configurado.");
+  }
+
+  try {
+    await client.send(new HeadObjectCommand({ Bucket: R2_BUCKET, Key: storageKey }));
+    return true;
+  } catch (error) {
+    if (error?.$metadata?.httpStatusCode === 404 || error?.name === "NotFound") {
+      return false;
+    }
+    throw error;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// deleteDocument
+// ---------------------------------------------------------------------------
+
+/**
+ * Elimina un objeto de R2. Si el objeto no existe, R2 responde igual con éxito.
+ *
+ * @param {string} storageKey — Key del objeto en R2
+ * @returns {Promise<void>}
+ * @throws {Error} si R2 no está configurado o falla la eliminación
+ */
+async function deleteDocument(storageKey) {
+  const client = getClient();
+
+  if (!client) {
+    throw new Error("R2 no está configurado.");
+  }
+
+  await client.send(new DeleteObjectCommand({ Bucket: R2_BUCKET, Key: storageKey }));
+}
+
+// ---------------------------------------------------------------------------
+// hasStoredFile
+// ---------------------------------------------------------------------------
+
+/**
+ * Indica si un documento tiene un archivo guardado. A diferencia de
+ * documentExists, nunca lanza: si R2 no responde (o no está configurado,
+ * como en local), asume que el archivo existe mientras haya storageKey.
+ *
+ * @param {string|null} storageKey
+ * @returns {Promise<boolean>}
+ */
+async function hasStoredFile(storageKey) {
+  if (!storageKey) return false;
+  if (!getClient()) return true;
+
+  try {
+    return await documentExists(storageKey);
+  } catch (error) {
+    console.error(`[storage] No se pudo comprobar el archivo ${storageKey}:`, error.message);
+    return true;
+  }
+}
+
+module.exports = {
+  uploadAudio,
+  uploadDocument,
+  getPresignedDownloadUrl,
+  documentExists,
+  deleteDocument,
+  hasStoredFile,
+};

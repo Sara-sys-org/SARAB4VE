@@ -274,3 +274,103 @@ export async function reviewVerificationDocument(
   });
   return handleResponse<VerificationDocument>(res);
 }
+
+// ---------------------------------------------------------------------------
+// PUT / DELETE /api/verification-documents/:id/file — admin agrega, reemplaza
+// o elimina el archivo de un documento (el documento se conserva)
+// ---------------------------------------------------------------------------
+
+/** Documento devuelto tras subir o eliminar su archivo. */
+export type DocumentFileData = {
+  id: number;
+  storageKey: string | null;
+  hasFile: boolean;
+  status: "pending" | "approved" | "rejected";
+  rejectionReason: string | null;
+  uploadedAt: string;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+};
+
+export type DocumentFileResult = {
+  document: DocumentFileData;
+  message?: string;
+  notice?: string;
+};
+
+const GENERIC_FILE_ERROR = "No se pudo completar la acción. Revisa tu conexión e inténtalo de nuevo.";
+
+export class DocumentFileError extends Error {
+  constructor(message: string, public status: number) {
+    super(message);
+    this.name = "DocumentFileError";
+  }
+}
+
+function parseFileResult(status: number, body: unknown): DocumentFileResult {
+  const parsed = (body ?? {}) as { data?: DocumentFileData; message?: string; notice?: string; errors?: string[] };
+  if (status < 200 || status >= 300 || !parsed.data) {
+    throw new DocumentFileError(parsed.errors?.join(" ") || GENERIC_FILE_ERROR, status);
+  }
+  return { document: parsed.data, message: parsed.message, notice: parsed.notice };
+}
+
+/**
+ * Sube un archivo a un documento existente (agregar o reemplazar).
+ * Usa XMLHttpRequest porque fetch no informa el progreso de subida.
+ *
+ * @param onProgress — recibe el porcentaje subido (0-100)
+ */
+export function uploadDocumentFile(
+  documentId: number,
+  file: File,
+  onProgress?: (percent: number) => void,
+): Promise<DocumentFileResult> {
+  return new Promise((resolve, reject) => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", `${API}/api/verification-documents/${documentId}/file`);
+
+    const authorization = getAuthHeaders()["Authorization"];
+    if (authorization) xhr.setRequestHeader("Authorization", authorization);
+
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable && onProgress) {
+        onProgress(Math.round((event.loaded / event.total) * 100));
+      }
+    };
+
+    xhr.onload = () => {
+      let body: unknown = null;
+      try {
+        body = JSON.parse(xhr.responseText);
+      } catch {
+      }
+      try {
+        resolve(parseFileResult(xhr.status, body));
+      } catch (error) {
+        reject(error);
+      }
+    };
+
+    xhr.onerror = () => reject(new DocumentFileError(GENERIC_FILE_ERROR, 0));
+    xhr.send(formData);
+  });
+}
+
+/** Elimina el archivo de un documento; el documento queda sin archivo. */
+export async function deleteDocumentFile(documentId: number): Promise<DocumentFileResult> {
+  try {
+    const res = await fetch(`${API}/api/verification-documents/${documentId}/file`, {
+      method: "DELETE",
+      headers: getAuthHeaders(),
+    });
+    const body = await res.json().catch(() => null);
+    return parseFileResult(res.status, body);
+  } catch (error) {
+    if (error instanceof TypeError) throw new DocumentFileError(GENERIC_FILE_ERROR, 0);
+    throw error;
+  }
+}
