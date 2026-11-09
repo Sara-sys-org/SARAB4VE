@@ -665,6 +665,31 @@ async function updateDocumentStatus(documentId, status, reason, reviewerId) {
   return result.rows[0];
 }
 
+const SET_DOCUMENT_FILE = `
+  UPDATE verification_documents
+  SET storage_key = $1::text,
+      uploaded_at = CASE WHEN $1::text IS NULL THEN uploaded_at ELSE NOW() END,
+      status = 'pending',
+      rejection_reason = NULL,
+      reviewed_by = NULL,
+      reviewed_at = NULL
+  WHERE id = $2
+  RETURNING ${VERIFICATION_DOCUMENT_SELECT}
+`;
+
+/**
+ * Vincula un archivo nuevo a un documento (o lo desvincula con storageKey = null).
+ * El documento vuelve a "pending" para revisarse de nuevo.
+ * @param {import("pg").PoolClient} client
+ * @param {number} documentId
+ * @param {string|null} storageKey
+ * @returns {Promise<Object>}
+ */
+async function setDocumentFile(client, documentId, storageKey) {
+  const result = await client.query(SET_DOCUMENT_FILE, [storageKey, documentId]);
+  return result.rows[0];
+}
+
 // ---------------------------------------------------------------------------
 // Transaction helper
 // ---------------------------------------------------------------------------
@@ -726,6 +751,7 @@ module.exports = {
   findDocumentById,
   findDocumentByStorageKey,
   updateDocumentStatus,
+  setDocumentFile,
 
   withTransaction,
 };

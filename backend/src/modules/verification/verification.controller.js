@@ -8,6 +8,7 @@ const {
   OrganizationRegisterBody,
   VolunteerRegisterBody,
   DocumentUploadBody,
+  DocumentFileBody,
   TransitionRequestBody,
   DocumentReviewBody,
   CatalogQuery,
@@ -323,6 +324,86 @@ function reviewDocument(service, repository) {
 }
 
 // ---------------------------------------------------------------------------
+// PUT /api/verification-documents/:id/file (admin) — agregar o reemplazar
+// ---------------------------------------------------------------------------
+
+/**
+ * @param {Object} service
+ * @param {Object} repository
+ * @returns {(req, res, next) => Promise<void>}
+ */
+function uploadDocumentFile(service, repository) {
+  return async (req, res, next) => {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      return res.status(400).json({ errors: ["id debe ser un número entero"] });
+    }
+
+    // req.file viene de multer
+    if (!req.file) {
+      return res.status(400).json({ errors: ["Selecciona un archivo para subir."] });
+    }
+
+    const validation = DocumentFileBody.safeParse({
+      fileName: req.file.originalname,
+      mimeType: req.file.mimetype,
+    });
+
+    if (!validation.success) {
+      // Mensajes pensados para el usuario final: sin el nombre del campo
+      const issues = validation.error.issues || [];
+      return res.status(400).json({ errors: issues.map((e) => e.message) });
+    }
+
+    try {
+      const result = await service.uploadDocumentFile(
+        id,
+        { ...validation.data, fileBuffer: req.file.buffer },
+        repository,
+      );
+
+      if (result.errors) {
+        return res.status(result.status).json({ errors: result.errors });
+      }
+
+      return res.json({ data: result.data, message: result.message, notice: result.notice });
+    } catch (error) {
+      return next(error);
+    }
+  };
+}
+
+// ---------------------------------------------------------------------------
+// DELETE /api/verification-documents/:id/file (admin)
+// ---------------------------------------------------------------------------
+
+/**
+ * @param {Object} service
+ * @param {Object} repository
+ * @returns {(req, res, next) => Promise<void>}
+ */
+function deleteDocumentFile(service, repository) {
+  return async (req, res, next) => {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      return res.status(400).json({ errors: ["id debe ser un número entero"] });
+    }
+
+    try {
+      const result = await service.deleteDocumentFile(id, repository);
+
+      if (result.errors) {
+        return res.status(result.status).json({ errors: result.errors });
+      }
+
+      return res.json({ data: result.data, message: result.message, notice: result.notice });
+    } catch (error) {
+      return next(error);
+    }
+  };
+}
+
+// ---------------------------------------------------------------------------
 // GET /api/admin/verifications (admin)
 // ---------------------------------------------------------------------------
 
@@ -419,6 +500,8 @@ module.exports = {
   getDocumentChecklist,
   getDownloadUrl,
   reviewDocument,
+  uploadDocumentFile,
+  deleteDocumentFile,
   listAdminVerifications,
   listAdminVerificationsPaginated,
   transitionVerification,

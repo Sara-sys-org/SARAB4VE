@@ -63,10 +63,17 @@ router.get(
 // Documentos de verificación
 // ---------------------------------------------------------------------------
 
-// Multer — middleware para recibir el archivo en memoria
+// Multer — middleware para recibir el archivo en memoria.
+// Rechaza formatos no permitidos antes de que el archivo llegue a R2.
 const uploadDocumentMulter = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+  fileFilter: (req, file, cb) => {
+    if (!schema.isAllowedDocumentFile(file.originalname, file.mimetype)) {
+      return cb(new Error(schema.DOCUMENT_FORMAT_ERROR));
+    }
+    cb(null, true);
+  },
 }).single("file");
 
 // Wrapper para capturar errores de multer
@@ -74,9 +81,7 @@ function handleDocumentUpload(req, res, next) {
   uploadDocumentMulter(req, res, (err) => {
     if (err) {
       if (err.code === "LIMIT_FILE_SIZE") {
-        return res.status(400).json({
-          errors: ["El archivo excede el tamaño máximo permitido (10 MB)"],
-        });
+        return res.status(400).json({ errors: [schema.DOCUMENT_SIZE_ERROR] });
       }
       return res.status(400).json({ errors: [err.message] });
     }
@@ -105,6 +110,23 @@ router.patch(
   authenticate,
   authorize("admin"),
   controller.reviewDocument(service, repository),
+);
+
+// Agregar o reemplazar el archivo de un documento (solo admin)
+router.put(
+  "/verification-documents/:id/file",
+  authenticate,
+  authorize("admin"),
+  handleDocumentUpload,
+  controller.uploadDocumentFile(service, repository),
+);
+
+// Eliminar el archivo de un documento; el documento se conserva (solo admin)
+router.delete(
+  "/verification-documents/:id/file",
+  authenticate,
+  authorize("admin"),
+  controller.deleteDocumentFile(service, repository),
 );
 
 // Descargar documento (URL prefirmada temporal)
