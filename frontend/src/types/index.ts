@@ -376,7 +376,10 @@ export interface VerificationRequest {
 export interface VerificationDocument {
     id: number;
     documentTypeId: number;
-    storageKey: string;
+    /** null si un administrador eliminó el archivo (el documento se conserva). */
+    storageKey: string | null;
+    /** true solo si el documento tiene un archivo guardado y accesible. */
+    hasFile: boolean;
     status: DocumentStatus;
     rejectionReason: string | null;
     uploadedAt: string;

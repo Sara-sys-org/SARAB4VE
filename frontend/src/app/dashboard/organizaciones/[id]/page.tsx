@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import StatusBadge from "@/components/layout/dashboard/StatusBadge";
+import DocumentFileActions from "@/components/layout/dashboard/DocumentFileActions";
 import { alertService } from "@/services/alertService";
 import { approveUser, rejectUser, getOrganizationProfile } from "@/api/user";
 import {
@@ -16,6 +17,7 @@ import type {
     OrganizationProfileResponse,
     VerificationStatus,
     DocumentStatus,
+    VerificationDocument,
 } from "@/types/index";
 
 const Location = dynamic(() => import("@/components/ui/Location"), {
@@ -267,6 +269,14 @@ export default function OrganizationDetailPage() {
         } finally {
             setDocActionLoadingId(null);
         }
+    };
+
+    /** Actualiza una fila de documentos sin recargar (tras reemplazar, agregar o eliminar su archivo). */
+    const updateDocument = (docId: number, changes: Partial<VerificationDocument>) => {
+        setPerfil((prev) => prev && {
+            ...prev,
+            documents: prev.documents.map((d) => (d.id === docId ? { ...d, ...changes } : d)),
+        });
     };
 
     /* --------------------- Estados de carga / error -------------------- */
@@ -619,12 +629,16 @@ export default function OrganizationDetailPage() {
                                                 </div>
                                             </td>
                                             <td className="py-2.5 pr-4">
-                                                <TagBadge
-                                                    label={DOC_STATUS_LABELS[doc.status] ?? doc.status}
-                                                    className={DOC_STATUS_CLASSES[doc.status]}
-                                                />
+                                                {doc.hasFile ? (
+                                                    <TagBadge
+                                                        label={DOC_STATUS_LABELS[doc.status] ?? doc.status}
+                                                        className={DOC_STATUS_CLASSES[doc.status]}
+                                                    />
+                                                ) : (
+                                                    <TagBadge label="Sin archivo cargado" />
+                                                )}
                                             </td>
-                                            <td className="py-2.5 pr-4 text-on-surface-variant text-xs">{fmtDate(doc.uploadedAt)}</td>
+                                            <td className="py-2.5 pr-4 text-on-surface-variant text-xs">{doc.hasFile ? fmtDate(doc.uploadedAt) : "—"}</td>
                                             <td className="py-2.5 pr-4 text-on-surface-variant text-xs">{fmtDate(doc.reviewedAt)}</td>
                                             <td className="py-2.5">
                                                 <div className="flex items-center justify-end gap-1.5">
@@ -632,18 +646,25 @@ export default function OrganizationDetailPage() {
                                                     <button
                                                         type="button"
                                                         onClick={() => handleDownloadDocument(doc.id)}
-                                                        disabled={isDownloading}
-                                                        title="Descargar documento"
+                                                        disabled={isDownloading || !doc.hasFile}
+                                                        aria-disabled={isDownloading || !doc.hasFile}
+                                                        title={doc.hasFile ? "Descargar documento" : "No hay archivo cargado"}
                                                         aria-label={`Descargar ${doc.documentTypeName}`}
-                                                        className="inline-flex items-center justify-center h-9 w-9 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-primary transition-colors disabled:opacity-50"
+                                                        className="inline-flex items-center justify-center h-9 w-9 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                                     >
                                                         <span className="material-symbols-rounded text-lg" aria-hidden="true">
                                                             {isDownloading ? "hourglass_top" : "download"}
                                                         </span>
                                                     </button>
 
-                                                    {/* Aprobar / Rechazar — solo si está pendiente */}
-                                                    {doc.status === "pending" && (
+                                                    {/* Reemplazar / Eliminar / Agregar archivo */}
+                                                    <DocumentFileActions
+                                                        doc={doc}
+                                                        onChange={(changes) => updateDocument(doc.id, changes)}
+                                                    />
+
+                                                    {/* Aprobar / Rechazar — solo si está pendiente y tiene archivo */}
+                                                    {doc.status === "pending" && doc.hasFile && (
                                                         <>
                                                             <button
                                                                 type="button"
