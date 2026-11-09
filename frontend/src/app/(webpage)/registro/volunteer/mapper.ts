@@ -82,6 +82,7 @@ export function buildVolunteerRegisterPayload(
         documentNumber: formData.documentNumber,
         birthDate: formData.birthDate,
         address: formData.address || undefined,
+        country: formData.country || undefined,
         profession: formData.profession || undefined,
         languages: formData.languages && formData.languages.length > 0 ? formData.languages : undefined,
         availabilityMode: deriveAvailabilityMode(formData.modalityPresential, formData.modalityOnline),

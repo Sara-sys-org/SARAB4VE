@@ -52,6 +52,7 @@ export interface MapItem {
     // Refugio (heredado)
     name?: string;
     address?: string;
+    country?: string;
     sector?: string;
     tags?: AccessibilityTag[];
     services?: ServiceTag[];
@@ -133,6 +134,7 @@ export interface iVolunteerForm extends BaseUserForm {
     documentNumber: string;
     birthDate: string;
     address: string;
+    country: string;
 
     // Tipo de perfil
     volunteerType: "professional" | "non_professional" | "";
@@ -267,6 +269,8 @@ export interface ApiUser {
     citizenProfile?: CitizenProfile | null;
     /** Nombre real de la organización (user_details.organization_name) — solo presente para organizaciones; `fullName` guarda al representante legal, no el nombre de la organización. */
     organizationName?: string | null;
+    /** País — de organization_profiles.country o volunteer_profiles.country según el rol; no existe para citizen/admin. */
+    country?: string | null;
 }
 
 /** Perfil de discapacidad persistente de un ciudadano (citizen_profiles). */
@@ -453,6 +457,7 @@ export interface VolunteerProfile {
     documentNumber: string | null;
     birthDate: string | null;
     address: string | null;
+    country: string | null;
     profession: string | null;
     languages: string[] | null;
     availabilityMode: AvailabilityMode | null;
@@ -502,6 +507,7 @@ export interface UpdateVolunteerProfilePayload {
     documentNumber?: string;
     birthDate?: string;
     address?: string;
+    country?: string;
     profession?: string;
     languages?: string[];
     availabilityMode?: AvailabilityMode;

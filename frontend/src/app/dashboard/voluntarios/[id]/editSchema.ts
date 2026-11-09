@@ -40,6 +40,7 @@ export interface VolunteerEditFormState {
     documentNumber: string;
     birthDate: string;
     address: string;
+    country: string;
     profession: string;
     /** Idiomas separados por comas — se convierten a array al guardar. */
     languages: string;
@@ -131,6 +132,7 @@ export const volunteerEditSchema = z.object({
     ),
     birthDate: optionalBirthDate,
     address: optionalMinText(5, 300, "Ingresa una dirección válida", "La dirección es demasiado larga"),
+    country: optionalText(60, "El país no puede exceder 60 caracteres"),
     profession: optionalText(100, "La profesión no puede exceder 100 caracteres"),
     languages: z.string().trim().optional(),
     availabilityMode: z
@@ -193,6 +195,7 @@ export function toVolunteerFormState(perfil: VolunteerProfileResponse): Voluntee
         // El backend puede devolver un timestamp completo; el input date espera YYYY-MM-DD.
         birthDate: volunteerProfile?.birthDate ? volunteerProfile.birthDate.slice(0, 10) : "",
         address: volunteerProfile?.address ?? "",
+        country: volunteerProfile?.country ?? "",
         profession: volunteerProfile?.profession ?? "",
         languages: (volunteerProfile?.languages ?? []).join(", "),
         availabilityMode: volunteerProfile?.availabilityMode ?? "",
@@ -210,7 +213,7 @@ export function toVolunteerFormState(perfil: VolunteerProfileResponse): Voluntee
 type IdentityStringPayloadKey = "fullName" | "email" | "phone" | "zone";
 
 /** Campos nullable de volunteer_profiles: un string vacío los borra (null). */
-type ProfileStringPayloadKey = "documentType" | "documentNumber" | "address" | "profession";
+type ProfileStringPayloadKey = "documentType" | "documentNumber" | "address" | "country" | "profession";
 
 function parseLanguages(value: string): string[] {
     return value
@@ -248,6 +251,7 @@ export function buildUpdatePayload(form: VolunteerEditFormState): UpdateVoluntee
     setProfile("documentType", form.documentType);
     setProfile("documentNumber", form.documentNumber);
     setProfile("address", form.address);
+    setProfile("country", form.country);
     setProfile("profession", form.profession);
 
     if (form.location) payload.location = form.location;

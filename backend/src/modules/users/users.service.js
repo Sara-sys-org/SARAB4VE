@@ -667,6 +667,7 @@ async function updateVolunteerProfile(volunteerId, payload, requester, repositor
   if (payload.documentNumber !== undefined) profileFields.documentNumber = payload.documentNumber?.trim() || null;
   if (payload.birthDate !== undefined) profileFields.birthDate = payload.birthDate || null;
   if (payload.address !== undefined) profileFields.address = payload.address?.trim() || null;
+  if (payload.country !== undefined) profileFields.country = payload.country?.trim() || null;
   if (payload.profession !== undefined) profileFields.profession = payload.profession?.trim() || null;
   if (payload.languages !== undefined) profileFields.languages = payload.languages.map((l) => l.trim());
   if (payload.availabilityMode !== undefined) profileFields.availabilityMode = payload.availabilityMode || null;

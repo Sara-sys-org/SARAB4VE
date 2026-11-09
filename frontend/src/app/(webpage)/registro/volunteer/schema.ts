@@ -73,6 +73,11 @@ export const volunteerSchema = z.object({
     .trim()
     .min(5, "Ingresa una dirección válida"),
 
+  country: z
+    .string()
+    .trim()
+    .min(2, "Ingresa tu país"),
+
   // ── Tipo de perfil ──
   volunteerType: z
     .string()

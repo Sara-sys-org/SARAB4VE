@@ -66,12 +66,20 @@ export default function OrganizationPage() {
                       </span>
                     </div>
                     <p className="text-sm text-on-surface-variant mt-0.5 truncate">{user.email}</p>
-                    {user.zone && (
-                      <p className="text-xs text-on-surface-variant mt-1 inline-flex items-center gap-1 min-w-0">
-                        <span className="material-symbols-rounded text-sm shrink-0" aria-hidden="true">location_on</span>
-                        <span className="truncate">{user.zone}</span>
-                      </p>
-                    )}
+                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                      {user.country && (
+                        <p className="text-xs text-on-surface-variant inline-flex items-center gap-1 min-w-0">
+                          <span className="material-symbols-rounded text-sm shrink-0" aria-hidden="true">public</span>
+                          <span className="truncate">{user.country}</span>
+                        </p>
+                      )}
+                      {user.zone && (
+                        <p className="text-xs text-on-surface-variant inline-flex items-center gap-1 min-w-0">
+                          <span className="material-symbols-rounded text-sm shrink-0" aria-hidden="true">location_on</span>
+                          <span className="truncate">{user.zone}</span>
+                        </p>
+                      )}
+                    </div>
                   </div>
 
                   <div className="shrink-0">

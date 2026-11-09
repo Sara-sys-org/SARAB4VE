@@ -6,6 +6,34 @@ const storage = require("../../services/storage");
 const { notifyNewHelpRequest } = require("../notifications/requestNotifications.service");
 const { REQUEST_STATUSES } = require("./helpRequests.schema");
 
+/** Roles que pueden ver el nombre, contacto y demás datos personales del solicitante. */
+const PRIVILEGED_ROLES = ["admin", "organization", "volunteer"];
+
+/**
+ * Quita del listado público los datos personales del solicitante (nombre,
+ * contacto, dirección, género, edad, nota de voz) — solo admin/organización/
+ * voluntario logueados pueden verlos. El mapa y /solicitudes deben ser
+ * visibles para cualquiera (es el requisito original del producto), pero
+ * sin exponer esos datos a quien no tiene un rol de atención.
+ * @param {Object[]} rows
+ * @returns {Object[]}
+ */
+function redactPersonalData(rows) {
+  return rows.map((row) => ({
+    ...row,
+    requesterName: null,
+    contactMethod: null,
+    contactValue: null,
+    address: null,
+    country: null,
+    gender: null,
+    age: null,
+    disabilityType: null,
+    disabilityOtherNote: null,
+    voiceNoteUrl: null,
+  }));
+}
+
 /**
  * Crea un help-request. Si vienen archivos adjuntos (carnet de
  * discapacidad y/o nota de voz), los sube a R2 antes de insertar la fila.
@@ -76,11 +104,16 @@ async function createHelpRequest(payload, schema, repository, userId, files = {}
  * @param {Object} repository
  * @returns {Promise<Array>}
  */
-async function listHelpRequests(filters, repository) {
+async function listHelpRequests(filters, repository, requesterRole) {
   const { sql, values } = repository.buildListHelpRequestsQuery(filters);
   // Necesitamos db aquí, así que lo importamos directamente
   const db = require("../../db");
   const result = await db.query(sql, values);
+
+  if (!requesterRole || !PRIVILEGED_ROLES.includes(requesterRole)) {
+    return redactPersonalData(result.rows);
+  }
+
   return result.rows;
 }
 

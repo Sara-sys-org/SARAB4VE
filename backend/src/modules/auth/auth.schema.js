@@ -171,6 +171,9 @@ const RegisterVolunteerBody = CommonFields.extend({
   address: z.string().optional()
     .openapi({ example: "Av. Principal 123", description: "Dirección de residencia" }),
 
+  country: z.string().max(60, "country no puede exceder 60 caracteres").optional()
+    .openapi({ example: "Venezuela", description: "País" }),
+
   profession: z.string().max(100).optional()
     .openapi({ example: "Médico cirujano", description: "Profesión" }),
 
@@ -576,6 +579,7 @@ function normalizeRegisterVolunteerExtended(payload) {
     documentNumber: payload.documentNumber?.trim() || null,
     birthDate: payload.birthDate || null,
     address: payload.address?.trim() || null,
+    country: payload.country?.trim() || null,
     profession: payload.profession?.trim() || null,
     languages: payload.languages?.map((l) => l.trim()) || null,
     availabilityMode: payload.availabilityMode || null,

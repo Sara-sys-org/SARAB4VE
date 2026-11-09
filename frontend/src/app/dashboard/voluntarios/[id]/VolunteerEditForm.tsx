@@ -481,6 +481,14 @@ export default function VolunteerEditForm({ perfil, onCancel, onSaved }: Volunte
                         placeholder="Ej. Av. Principal 123"
                     />
                     <TextField
+                        id="vol-edit-country"
+                        label="País"
+                        value={formData.country}
+                        onChange={(v) => update("country", v)}
+                        error={errors.country}
+                        placeholder="Ej. Venezuela"
+                    />
+                    <TextField
                         id="vol-edit-profession"
                         label="Profesión"
                         value={formData.profession}

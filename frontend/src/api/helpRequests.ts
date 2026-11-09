@@ -12,6 +12,7 @@ export type HelpRequestPayload = {
   longitude?: number | null;
   urgency?: string;
   address?: string;
+  country?: string;
   gender?: string;
   age?: number | null;
   disabilityType?: string;
@@ -35,6 +36,7 @@ export interface HelpRequestListItem {
   urgency: "low" | "medium" | "high" | "critical";
   status: string;
   address?: string | null;
+  country?: string | null;
   gender?: string | null;
   age?: number | null;
   disabilityType?: string | null;
@@ -142,6 +144,7 @@ export async function sendHelpRequest(
   formData.append("needType", payload.needType);
   if (payload.description) formData.append("description", payload.description);
   if (payload.address) formData.append("address", payload.address);
+  if (payload.country) formData.append("country", payload.country);
   if (payload.latitude != null) formData.append("latitude", String(payload.latitude));
   if (payload.longitude != null) formData.append("longitude", String(payload.longitude));
   if (payload.urgency) formData.append("urgency", payload.urgency);
@@ -195,6 +198,7 @@ export interface HelpRequestDetail {
   urgency: "low" | "medium" | "high" | "critical";
   status: string;
   address: string | null;
+  country: string | null;
   gender: string | null;
   age: number | null;
   disabilityType: string | null;
@@ -215,6 +219,9 @@ export async function getHelpRequestById(id: string): Promise<HelpRequestDetail>
   });
 
   if (!res.ok) {
+    if (res.status === 401 || res.status === 403) {
+      throw new Error("Inicia sesión como voluntario u organización para ver el detalle completo de esta solicitud.");
+    }
     const text = await res.text().catch(() => "");
     throw new Error(text || res.statusText || `HTTP ${res.status}`);
   }

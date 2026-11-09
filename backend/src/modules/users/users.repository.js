@@ -29,7 +29,11 @@ const USER_SELECT_COLUMNS = `
  * Columnas para el listado — mismas columnas que USER_SELECT_COLUMNS pero
  * calificadas con el alias "u." porque esta consulta hace LEFT JOIN con
  * user_details para traer organization_name (el nombre real de la
- * organización no vive en users.full_name, ver migración de este fix).
+ * organización no vive en users.full_name, ver migración de este fix), y con
+ * organization_profiles/volunteer_profiles para traer el país — cada rol
+ * guarda su país en una tabla distinta, así que se toma el que corresponda
+ * con COALESCE (nunca van a estar los dos a la vez, porque un usuario es de
+ * un solo rol).
  */
 const USER_LIST_SELECT_COLUMNS = `
   u.id,
@@ -44,7 +48,8 @@ const USER_LIST_SELECT_COLUMNS = `
   u.email_verified AS "emailVerified",
   u.created_at AS "createdAt",
   u.updated_at AS "updatedAt",
-  ud.organization_name AS "organizationName"
+  ud.organization_name AS "organizationName",
+  COALESCE(op.country, vp.country) AS "country"
 `;
 
 /** Columnas de user_details. */
@@ -118,6 +123,8 @@ function buildListUsersQuery(filters = {}) {
     SELECT ${USER_LIST_SELECT_COLUMNS}
     FROM users u
     LEFT JOIN user_details ud ON ud.user_id = u.id
+    LEFT JOIN organization_profiles op ON op.user_id = u.id
+    LEFT JOIN volunteer_profiles vp ON vp.user_id = u.id
     ${whereClause}
     ORDER BY u.created_at DESC
     LIMIT $${paramIndex++} OFFSET $${paramIndex++}
@@ -512,6 +519,7 @@ const VOLUNTEER_PROFILE_COLUMN_MAP = {
   documentNumber: "document_number",
   birthDate: "birth_date",
   address: "address",
+  country: "country",
   profession: "profession",
   languages: "languages",
   availabilityMode: "availability_mode",
@@ -808,6 +816,7 @@ const VOLUNTEER_PROFILE_SELECT = `
   document_number AS "documentNumber",
   birth_date AS "birthDate",
   address,
+  country,
   profession, languages,
   availability_mode AS "availabilityMode",
   has_prior_experience AS "hasPriorExperience",

@@ -82,6 +82,7 @@ function helpRequestToMapItem(h: HelpRequestListItem): MapItem {
     contactMethod: h.contactMethod,
     contactValue: h.contactValue,
     address: h.address ?? undefined,
+    country: h.country ?? undefined,
     gender: h.gender ?? undefined,
     age: h.age ?? undefined,
     disabilityType: h.disabilityType ?? undefined,

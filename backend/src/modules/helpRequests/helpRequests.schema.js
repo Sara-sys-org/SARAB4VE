@@ -75,6 +75,7 @@ function normalizeCreateHelpRequest(payload, userId) {
     longitude: hasLat && hasLng ? Number(payload.longitude) : null,
     urgency: payload.urgency || "medium",
     address: payload.address ? payload.address.trim() : null,
+    country: payload.country ? payload.country.trim() : null,
     gender: payload.gender ? payload.gender.trim() : null,
     age: hasAge ? Number(payload.age) : null,
     disabilityType,

@@ -42,6 +42,7 @@ const InitVolunteerForm: iVolunteerForm = {
     documentNumber: "",
     birthDate: "",
     address: "",
+    country: "",
     volunteerType: "non_professional",
     profession: "",
     languages: [],
@@ -110,6 +111,7 @@ export default function VolunteerRegister() {
         documentNumber: useId(),
         birthDate: useId(),
         address: useId(),
+        country: useId(),
         volunteerType: useId(),
         profession: useId(),
         languages: useId(),
@@ -405,6 +407,22 @@ export default function VolunteerRegister() {
                             />
                             {errors.address && (
                                 <p id={`${ids.address}-err`} className={errorClass}>{errors.address}</p>
+                            )}
+                        </div>
+
+                        <div>
+                            <Label htmlFor={ids.country} name="País" required />
+                            <input
+                                id={ids.country}
+                                className={`${fieldClass} mt-2 ${errors.country ? "border-error" : ""}`}
+                                placeholder="Ej. Venezuela"
+                                value={formData.country}
+                                onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                                aria-invalid={!!errors.country}
+                                aria-describedby={errors.country ? `${ids.country}-err` : undefined}
+                            />
+                            {errors.country && (
+                                <p id={`${ids.country}-err`} className={errorClass}>{errors.country}</p>
                             )}
                         </div>
                     </fieldset>

@@ -7,6 +7,22 @@ const db = require("../../db");
 const { notifyNewEmergency } = require("../notifications/requestNotifications.service");
 const { EMERGENCY_STATUSES } = require("./emergencies.schema");
 
+/** Roles que pueden ver el nombre y tipo de discapacidad del solicitante en el listado. */
+const PRIVILEGED_ROLES = ["admin", "organization", "volunteer"];
+
+/**
+ * Quita del listado público el nombre y el tipo de discapacidad del
+ * solicitante — solo admin/organización/voluntario logueados pueden verlos.
+ * El mapa debe ser visible para cualquiera sin exponer esos datos a quien
+ * no tiene un rol de atención. No afecta el ícono del pin: eso depende solo
+ * de `kind`/`urgency`, no de `disabilityType` (ver LeafletMap.tsx).
+ * @param {Object[]} rows
+ * @returns {Object[]}
+ */
+function redactPersonalData(rows) {
+  return rows.map((row) => ({ ...row, requesterName: null, disabilityType: null }));
+}
+
 /** Costo del hash bcrypt para access tokens. */
 const BCRYPT_ROUNDS = 10;
 
@@ -133,9 +149,14 @@ async function createEmergency(payload, userId) {
  * @param {Object} filters — salida de validateSearchEmergencies().filters
  * @returns {Promise<Array>}
  */
-async function listEmergencies(filters, repository) {
+async function listEmergencies(filters, repository, requesterRole) {
   const { sql, values } = repository.buildListEmergenciesQuery(filters);
   const result = await db.query(sql, values);
+
+  if (!requesterRole || !PRIVILEGED_ROLES.includes(requesterRole)) {
+    return redactPersonalData(result.rows);
+  }
+
   return result.rows;
 }
 
