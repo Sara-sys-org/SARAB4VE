@@ -124,6 +124,12 @@ export default function UsuariosPage() {
                         {TIPO_LABELS[tipo]}
                       </span>
                       <span className="text-sm text-on-surface-variant truncate min-w-0">{user.email}</span>
+                      {user.country && (
+                        <span className="text-xs text-on-surface-variant inline-flex items-center gap-1 shrink-0">
+                          <span className="material-symbols-rounded text-sm" aria-hidden="true">public</span>
+                          {user.country}
+                        </span>
+                      )}
                     </div>
                   </div>
 

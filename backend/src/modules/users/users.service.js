@@ -223,16 +223,19 @@ async function updateUser(targetUserId, updates, requester, repository) {
     repoUpdates.passwordHash = await hashPassword(updates.password);
   }
 
-  // Información de discapacidad — vive en citizen_profiles y solo aplica a
-  // ciudadanos. El frontend envía los tres campos juntos (null para limpiar).
+  // Información de discapacidad y país — viven en citizen_profiles y solo
+  // aplican a ciudadanos. Los tres campos de discapacidad se envían juntos
+  // (null para limpiar); country es independiente — si no se envía, el
+  // repositorio conserva el valor que ya hubiera (ver upsertCitizenProfile).
   const hasDisabilityUpdates =
     updates.disabilityType !== undefined ||
     updates.disabilitySubcategory !== undefined ||
     updates.communicationMode !== undefined;
+  const hasCitizenProfileUpdates = hasDisabilityUpdates || updates.country !== undefined;
 
-  if (hasDisabilityUpdates && existingUser.role !== "citizen") {
+  if (hasCitizenProfileUpdates && existingUser.role !== "citizen") {
     return {
-      errors: ["La información de discapacidad solo aplica a usuarios ciudadanos"],
+      errors: ["La información de discapacidad y el país (de este endpoint) solo aplican a usuarios ciudadanos"],
       status: 400,
     };
   }
@@ -241,11 +244,12 @@ async function updateUser(targetUserId, updates, requester, repository) {
     const updatedUser = await repository.withTransaction(async (client) => {
       const user = await repository.updateUser(client, targetUserId, repoUpdates);
 
-      if (hasDisabilityUpdates) {
+      if (hasCitizenProfileUpdates) {
         await repository.upsertCitizenProfile(client, targetUserId, {
           disabilityType: updates.disabilityType,
           disabilitySubcategory: updates.disabilitySubcategory,
           communicationMode: updates.communicationMode,
+          country: updates.country !== undefined ? (updates.country.trim() || null) : undefined,
         });
       }
 
@@ -681,6 +685,7 @@ async function updateVolunteerProfile(volunteerId, payload, requester, repositor
   if (payload.documentNumber !== undefined) profileFields.documentNumber = payload.documentNumber?.trim() || null;
   if (payload.birthDate !== undefined) profileFields.birthDate = payload.birthDate || null;
   if (payload.address !== undefined) profileFields.address = payload.address?.trim() || null;
+  if (payload.country !== undefined) profileFields.country = payload.country?.trim() || null;
   if (payload.profession !== undefined) profileFields.profession = payload.profession?.trim() || null;
   if (payload.languages !== undefined) profileFields.languages = payload.languages.map((l) => l.trim());
   if (payload.availabilityMode !== undefined) profileFields.availabilityMode = payload.availabilityMode || null;

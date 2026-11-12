@@ -19,8 +19,11 @@ const {
 
 const router = express.Router();
 
-router.get("/", 
-    authenticate, authorize("admin", "organization", "volunteer"), 
+// Pública (el mapa debe verse sin login) — el servicio redacta nombre y
+// tipo de discapacidad cuando el solicitante no es admin/organización/
+// voluntario (ver emergencies.service.js redactPersonalData).
+router.get("/",
+    optionalAuthenticate,
     controller.listEmergencies(service, repository, schema));
 // Conteo por estado para los contadores del dashboard.
 // Debe ir antes de "/:id" — si no, Express interpreta "stats" como un id.

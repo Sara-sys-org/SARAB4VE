@@ -16,6 +16,7 @@ import { alertService } from "@/services/alertService";
 import { citizenSchema, getFieldErrors, type CitizenFormData } from "./schema";
 import { buildCitizenRegisterPayload } from "./mapper";
 import { CITIZEN_INTRO_TEXT } from "./constants";
+import { COUNTRIES } from "@/lib/countries";
 
 const Location = dynamic(() => import("@/components/ui/Location"), {
   ssr: false,
@@ -32,6 +33,7 @@ const InitForm: CitizenFormData = {
   password: "",
   location: null,
   zone: "",
+  country: "",
   acceptedTerms: true,
 };
 
@@ -71,6 +73,7 @@ export default function CitizenRegisterForm() {
     password: useId(),
     location: useId(),
     zone: useId(),
+    country: useId(),
   } as const;
 
   async function handleSubmit(e: React.FormEvent) {
@@ -292,6 +295,32 @@ export default function CitizenRegisterForm() {
               {errors.zone && (
                 <p id={`${ids.zone}-err`} className={errorClass}>
                   {errors.zone}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <Label htmlFor={ids.country} name="País" required />
+              <select
+                id={ids.country}
+                className={`${fieldClass} mt-2 ${errors.country ? "border-error" : ""}`}
+                value={formData.country}
+                onChange={(e) =>
+                  setFormData({ ...formData, country: e.target.value })
+                }
+                aria-invalid={!!errors.country}
+                aria-describedby={
+                  errors.country ? `${ids.country}-err` : undefined
+                }
+              >
+                <option value="">Selecciona un país</option>
+                {COUNTRIES.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+              {errors.country && (
+                <p id={`${ids.country}-err`} className={errorClass}>
+                  {errors.country}
                 </p>
               )}
             </div>

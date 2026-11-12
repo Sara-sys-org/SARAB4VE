@@ -29,7 +29,11 @@ const USER_SELECT_COLUMNS = `
  * Columnas para el listado — mismas columnas que USER_SELECT_COLUMNS pero
  * calificadas con el alias "u." porque esta consulta hace LEFT JOIN con
  * user_details para traer organization_name (el nombre real de la
- * organización no vive en users.full_name, ver migración de este fix).
+ * organización no vive en users.full_name, ver migración de este fix), y con
+ * organization_profiles/volunteer_profiles para traer el país — cada rol
+ * guarda su país en una tabla distinta, así que se toma el que corresponda
+ * con COALESCE (nunca van a estar los dos a la vez, porque un usuario es de
+ * un solo rol).
  */
 const USER_LIST_SELECT_COLUMNS = `
   u.id,
@@ -44,7 +48,8 @@ const USER_LIST_SELECT_COLUMNS = `
   u.email_verified AS "emailVerified",
   u.created_at AS "createdAt",
   u.updated_at AS "updatedAt",
-  ud.organization_name AS "organizationName"
+  ud.organization_name AS "organizationName",
+  COALESCE(op.country, vp.country) AS "country"
 `;
 
 /** Columnas de user_details. */
@@ -118,6 +123,8 @@ function buildListUsersQuery(filters = {}) {
     SELECT ${USER_LIST_SELECT_COLUMNS}
     FROM users u
     LEFT JOIN user_details ud ON ud.user_id = u.id
+    LEFT JOIN organization_profiles op ON op.user_id = u.id
+    LEFT JOIN volunteer_profiles vp ON vp.user_id = u.id
     ${whereClause}
     ORDER BY u.created_at DESC
     LIMIT $${paramIndex++} OFFSET $${paramIndex++}
@@ -225,6 +232,7 @@ const CITIZEN_PROFILE_SELECT = `
   disability_type AS "disabilityType",
   disability_subcategory AS "disabilitySubcategory",
   communication_mode AS "communicationMode",
+  country,
   created_at AS "createdAt",
   updated_at AS "updatedAt"
 `;
@@ -245,37 +253,44 @@ async function findCitizenProfileById(userId) {
   return result.rows[0] || null;
 }
 
+/** Mapa campo-de-servicio → columna real de citizen_profiles. */
+const CITIZEN_PROFILE_COLUMN_MAP = {
+  disabilityType: "disability_type",
+  disabilitySubcategory: "disability_subcategory",
+  communicationMode: "communication_mode",
+  country: "country",
+};
+
 /**
- * Crea o actualiza el perfil de discapacidad de un ciudadano.
- * Recibe los tres campos completos (el frontend los envía juntos), por lo
- * que un `null` limpia explícitamente el valor correspondiente.
+ * Crea o actualiza el perfil de un ciudadano (discapacidad + país).
+ * Solo toca las columnas cuyo campo venga definido (`!== undefined`) en
+ * `profile` — así, actualizar solo el país no borra la discapacidad ya
+ * guardada, y viceversa. Un `null` explícito sí limpia esa columna
+ * puntual; omitir el campo la deja intacta.
  *
  * @param {import("pg").PoolClient} client — Cliente de transacción
  * @param {string} userId
- * @param {{ disabilityType: string|null, disabilitySubcategory: string|null, communicationMode: string|null }} profile
+ * @param {{ disabilityType?: string|null, disabilitySubcategory?: string|null, communicationMode?: string|null, country?: string|null }} profile
  * @returns {Promise<Object>} — Fila insertada/actualizada
  */
 async function upsertCitizenProfile(client, userId, profile) {
+  const providedFields = Object.keys(CITIZEN_PROFILE_COLUMN_MAP)
+    .filter((field) => profile[field] !== undefined);
+
+  const columns = providedFields.map((field) => CITIZEN_PROFILE_COLUMN_MAP[field]);
+  const values = providedFields.map((field) => profile[field]);
+  const placeholders = values.map((_, i) => `$${i + 2}`);
+  const updateSetClauses = columns.map((column) => `${column} = EXCLUDED.${column}`);
+
   const query = `
-    INSERT INTO citizen_profiles (
-      user_id, disability_type, disability_subcategory, communication_mode
-    )
-    VALUES ($1, $2, $3, $4)
+    INSERT INTO citizen_profiles (user_id${columns.length ? ", " + columns.join(", ") : ""})
+    VALUES ($1${placeholders.length ? ", " + placeholders.join(", ") : ""})
     ON CONFLICT (user_id) DO UPDATE SET
-      disability_type = EXCLUDED.disability_type,
-      disability_subcategory = EXCLUDED.disability_subcategory,
-      communication_mode = EXCLUDED.communication_mode,
-      updated_at = NOW()
+      ${[...updateSetClauses, "updated_at = NOW()"].join(",\n      ")}
     RETURNING ${CITIZEN_PROFILE_SELECT}
   `;
 
-  const result = await (client || db).query(query, [
-    userId,
-    profile.disabilityType ?? null,
-    profile.disabilitySubcategory ?? null,
-    profile.communicationMode ?? null,
-  ]);
-
+  const result = await (client || db).query(query, [userId, ...values]);
   return result.rows[0] || null;
 }
 
@@ -512,6 +527,7 @@ const VOLUNTEER_PROFILE_COLUMN_MAP = {
   documentNumber: "document_number",
   birthDate: "birth_date",
   address: "address",
+  country: "country",
   profession: "profession",
   languages: "languages",
   availabilityMode: "availability_mode",
@@ -814,6 +830,7 @@ const VOLUNTEER_PROFILE_SELECT = `
   document_number AS "documentNumber",
   birth_date AS "birthDate",
   address,
+  country,
   profession, languages,
   availability_mode AS "availabilityMode",
   has_prior_experience AS "hasPriorExperience",

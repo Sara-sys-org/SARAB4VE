@@ -37,8 +37,11 @@ function handleHelpRequestUpload(req, res, next) {
   });
 }
 
+// Pública (el mapa y /solicitudes deben verse sin login) — el servicio
+// redacta nombre/contacto/dirección/etc. cuando el solicitante no es
+// admin/organización/voluntario (ver helpRequests.service.js redactPersonalData).
 router.get("/",
-    authenticate, authorize("admin", "organization", "volunteer"),
+    optionalAuthenticate,
     controller.listHelpRequests(service, repository, schema));
 // Conteo por estado para los contadores del dashboard.
 // Debe ir antes de "/:id" — si no, Express interpreta "stats" como un id.

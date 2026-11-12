@@ -350,19 +350,44 @@ async function insertOrganizationService(client, organizationId, serviceId) {
 }
 
 // ---------------------------------------------------------------------------
+// INSERT — citizen_profiles (solo país al registrarse; la info de
+// discapacidad se completa después desde /perfil, ver users.repository.js
+// upsertCitizenProfile)
+// ---------------------------------------------------------------------------
+
+const INSERT_CITIZEN_PROFILE = `
+  INSERT INTO citizen_profiles (user_id, country)
+  VALUES ($1, $2)
+  RETURNING user_id AS "userId", country, created_at AS "createdAt", updated_at AS "updatedAt"
+`;
+
+/**
+ * Inserta el país de un ciudadano recién registrado. Los campos de
+ * discapacidad se agregan más tarde (upsertCitizenProfile en users.repository.js).
+ * @param {import("pg").PoolClient} client — Cliente de transacción
+ * @param {string} userId
+ * @param {{ country: string|null }} profile
+ * @returns {Promise<Object>}
+ */
+async function insertCitizenProfile(client, userId, profile) {
+  const result = await client.query(INSERT_CITIZEN_PROFILE, [userId, profile.country]);
+  return result.rows[0];
+}
+
+// ---------------------------------------------------------------------------
 // INSERT — volunteer_profiles (perfil extendido)
 // ---------------------------------------------------------------------------
 
 const INSERT_VOLUNTEER_PROFILE = `
   INSERT INTO volunteer_profiles (
     user_id, volunteer_type, document_type, document_number, birth_date, address,
-    profession, languages, availability_mode, has_prior_experience,
+    country, profession, languages, availability_mode, has_prior_experience,
     transport_available
   )
-  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
   RETURNING user_id AS "userId", volunteer_type AS "volunteerType",
             document_type AS "documentType", document_number AS "documentNumber",
-            birth_date AS "birthDate", address, profession, languages,
+            birth_date AS "birthDate", address, country, profession, languages,
             availability_mode AS "availabilityMode",
             has_prior_experience AS "hasPriorExperience",
             transport_available AS "transportAvailable",
@@ -383,6 +408,7 @@ async function insertVolunteerProfile(client, profile) {
     profile.documentNumber,
     profile.birthDate,
     profile.address,
+    profile.country,
     profile.profession,
     profile.languages,
     profile.availabilityMode,
@@ -559,6 +585,7 @@ module.exports = {
   USER_DETAILS_SELECT_COLUMNS,
   insertUser,
   insertUserDetails,
+  insertCitizenProfile,
   insertOrganizationProfile,
   insertLegalRepresentative,
   insertOrganizationDisabilityType,

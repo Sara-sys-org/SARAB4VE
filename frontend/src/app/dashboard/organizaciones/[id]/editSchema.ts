@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { UpdateOrganizationProfilePayload } from "@/types";
+import { COUNTRIES } from "@/lib/countries";
 
 // Validación espejo del formulario de registro (mismas reglas del backend),
 // pero todos los campos opcionales: editar no debe bloquear si un campo viene
@@ -102,7 +103,7 @@ export const organizationEditSchema = z.object({
   otherEntityType: optionalText(100, "El tipo de entidad no puede exceder 100 caracteres"),
   registryNumber: optionalText(50, "El número de registro no puede exceder 50 caracteres"),
   foundedAt: optionalDate,
-  country: optionalText(60, "El país no puede exceder 60 caracteres"),
+  country: z.enum(["", ...COUNTRIES], "Selecciona un país válido").optional(),
   province: optionalText(60, "La provincia no puede exceder 60 caracteres"),
   city: optionalText(60, "La ciudad no puede exceder 60 caracteres"),
   address: z.string().trim().optional(),

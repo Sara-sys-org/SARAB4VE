@@ -149,6 +149,11 @@ const UpdateUserBody = z.object({
 
   communicationMode: z.enum(CITIZEN_COMMUNICATION_MODES).nullable().optional()
     .openapi({ example: "lengua_senas", description: "Modo de comunicación (discapacidad auditiva)" }),
+
+  // País (solo perfil de ciudadano — organización/voluntario lo editan por
+  // su propio endpoint de perfil extendido).
+  country: z.string().max(60, "country no puede exceder 60 caracteres").optional()
+    .openapi({ example: "Venezuela", description: "País (solo ciudadanos)" }),
 }).refine(
   (data) => Object.keys(data).length > 0,
   { message: "Debe enviar al menos un campo para actualizar" },

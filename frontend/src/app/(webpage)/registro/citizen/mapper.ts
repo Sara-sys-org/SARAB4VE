@@ -20,5 +20,6 @@ export function buildCitizenRegisterPayload(
     password: formData.password,
     location: formData.location,
     zone: formData.zone,
+    country: formData.country,
   };
 }

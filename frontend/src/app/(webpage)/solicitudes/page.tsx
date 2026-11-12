@@ -136,6 +136,7 @@ function SolicitudesContent() {
                     <th className="pb-2 pr-4">Edad</th>
                     <th className="pb-2 pr-4">Tipo de discapacidad</th>
                     <th className="pb-2 pr-4">Dirección o referencia</th>
+                    <th className="pb-2 pr-4">País</th>
                     <th className="pb-2 pr-4">Contacto</th>
                     <th className="pb-2 pr-4">Nota</th>
                     <th className="pb-2 pr-4">Urgencia</th>
@@ -164,6 +165,7 @@ function SolicitudesContent() {
                           : "—"}
                       </td>
                       <td className="py-2.5 pr-4 text-on-surface-variant">{req.address || "—"}</td>
+                      <td className="py-2.5 pr-4 text-on-surface-variant whitespace-nowrap">{req.country || "—"}</td>
                       <td className="py-2.5 pr-4 text-on-surface-variant whitespace-nowrap">
                         {CONTACT_METHOD_LABELS[req.contactMethod] ?? req.contactMethod}: {req.contactValue}
                       </td>

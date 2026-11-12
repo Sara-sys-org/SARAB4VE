@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { MapItem, UrgencyLevel } from "@/types";
 import {
   getEmergencyById,
@@ -133,6 +134,7 @@ function helpRequestDetailToMapItem(d: HelpRequestDetail): MapItem {
     contactMethod: d.contactMethod,
     contactValue: d.contactValue,
     address: d.address ?? undefined,
+    country: d.country ?? undefined,
     gender: d.gender ?? undefined,
     age: d.age ?? undefined,
     disabilityType: d.disabilityType ?? undefined,
@@ -387,8 +389,18 @@ export function ModalDetalleSolicitud({ id, kind, open, onClose, onAttendSuccess
           {/* Error */}
           {error && !loading && (
             <div className="flex flex-col items-center gap-2 py-8 text-center">
-              <span className="material-symbols-rounded text-3xl text-red-500">error</span>
+              <span className="material-symbols-rounded text-3xl text-red-500">
+                {error.startsWith("Inicia sesión") ? "lock" : "error"}
+              </span>
               <p className="text-sm text-red-600">{error}</p>
+              {error.startsWith("Inicia sesión") && (
+                <Link
+                  href="/login"
+                  className="text-xs font-semibold text-primary hover:underline"
+                >
+                  Iniciar sesión
+                </Link>
+              )}
               <button
                 onClick={onClose}
                 className="text-xs font-semibold text-primary hover:underline mt-1"
@@ -492,6 +504,10 @@ export function ModalDetalleSolicitud({ id, kind, open, onClose, onAttendSuccess
 
                   {item.address && (
                     <FieldRow icon="location_on" label="Dirección o referencia" value={item.address} />
+                  )}
+
+                  {item.country && (
+                    <FieldRow icon="public" label="País" value={item.country} />
                   )}
 
                   {(item.gender || item.age != null) && (

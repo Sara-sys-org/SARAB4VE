@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { isValidPhoneNumber } from "libphonenumber-js";
+import { COUNTRIES } from "@/lib/countries";
 
 const MAX_VOLUNTEER_AGE_YEARS = 80;
 
@@ -72,6 +73,9 @@ export const volunteerSchema = z.object({
     .string()
     .trim()
     .min(5, "Ingresa una dirección válida"),
+
+  country: z
+    .enum(COUNTRIES, "Selecciona un país válido"),
 
   // ── Tipo de perfil ──
   volunteerType: z

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { isValidPhoneNumber } from "libphonenumber-js";
+import { COUNTRIES } from "@/lib/countries";
 
 /**
  * Esquema de validación para el registro de ciudadano.
@@ -55,6 +56,12 @@ export const citizenSchema = z.object({
     .string()
     .trim()
     .min(2, "Ingresa una zona válida"),
+
+  country: z
+    .string()
+    .refine((val) => (COUNTRIES as readonly string[]).includes(val), {
+      message: "Selecciona un país válido",
+    }),
 
   acceptedTerms: z.literal(true, {
     error: () => ({ message: "Debes aceptar los términos y el código de conducta" }),

@@ -14,7 +14,7 @@ function listHelpRequests(service, repository, schema) {
     }
 
     try {
-      const rows = await service.listHelpRequests(search.filters, repository);
+      const rows = await service.listHelpRequests(search.filters, repository, req.user?.role);
       res.json({ data: rows });
     } catch (error) {
       next(error);

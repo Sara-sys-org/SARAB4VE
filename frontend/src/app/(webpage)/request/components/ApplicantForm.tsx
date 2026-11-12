@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRef, useState, type ChangeEvent, type FocusEvent, type FormEvent } from "react";
+import { COUNTRIES } from "@/lib/countries";
 
 export type SOSFormValues = {
   requester_name: string;
@@ -12,6 +13,7 @@ export type SOSFormValues = {
   description: string;
   urgency: string;
   address: string;
+  country: string;
   people: number;
   gender: string;
   age: string;
@@ -234,6 +236,19 @@ export default function ClientForm({
         <div className="relative">
           <span className="material-symbols-rounded absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none" aria-hidden="true">location_on</span>
           <input name="address" value={form.address} onChange={onChange} type="text" autoComplete="street-address" placeholder="Ej: Av. Francisco de Miranda, frente a la plaza" className="w-full rounded-xl border border-outline-variant bg-surface-container-low pl-12 pr-4 py-3.5" />
+        </div>
+      </div>
+
+      <div>
+        <label className="text-sm font-semibold text-on-surface mb-1">País</label>
+        <div className="relative">
+          <span className="material-symbols-rounded absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none" aria-hidden="true">public</span>
+          <select name="country" value={form.country} onChange={onChange} className="w-full rounded-xl border border-outline-variant bg-surface-container-low pl-12 pr-4 py-3.5">
+            <option value="">Selecciona un país</option>
+            {COUNTRIES.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
         </div>
       </div>
 

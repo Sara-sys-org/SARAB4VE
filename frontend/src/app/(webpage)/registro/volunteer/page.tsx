@@ -18,6 +18,7 @@ import { getDocumentChecklist, uploadVerificationDocument } from "@/api/verifica
 import { buildVolunteerRegisterPayload } from "./mapper";
 import { volunteerSchema, getFieldErrors, type VolunteerFormData } from "./schema";
 import { alertService } from "@/services/alertService";
+import { COUNTRIES } from "@/lib/countries";
 import dynamic from "next/dynamic";
 import "react-phone-number-input/style.css"
 import PhoneField from "@/components/ui/PhoneField";
@@ -42,6 +43,7 @@ const InitVolunteerForm: iVolunteerForm = {
     documentNumber: "",
     birthDate: "",
     address: "",
+    country: "",
     volunteerType: "non_professional",
     profession: "",
     languages: [],
@@ -110,6 +112,7 @@ export default function VolunteerRegister() {
         documentNumber: useId(),
         birthDate: useId(),
         address: useId(),
+        country: useId(),
         volunteerType: useId(),
         profession: useId(),
         languages: useId(),
@@ -405,6 +408,26 @@ export default function VolunteerRegister() {
                             />
                             {errors.address && (
                                 <p id={`${ids.address}-err`} className={errorClass}>{errors.address}</p>
+                            )}
+                        </div>
+
+                        <div>
+                            <Label htmlFor={ids.country} name="País" required />
+                            <select
+                                id={ids.country}
+                                className={`${fieldClass} mt-2 ${errors.country ? "border-error" : ""}`}
+                                value={formData.country}
+                                onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                                aria-invalid={!!errors.country}
+                                aria-describedby={errors.country ? `${ids.country}-err` : undefined}
+                            >
+                                <option value="">Selecciona un país</option>
+                                {COUNTRIES.map((c) => (
+                                    <option key={c} value={c}>{c}</option>
+                                ))}
+                            </select>
+                            {errors.country && (
+                                <p id={`${ids.country}-err`} className={errorClass}>{errors.country}</p>
                             )}
                         </div>
                     </fieldset>
