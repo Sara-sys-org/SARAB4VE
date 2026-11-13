@@ -18,13 +18,27 @@ const MISION =
 const VISION =
   "Construir y hacer crecer una red de cooperación e inclusión social en la que personas y entidades puedan encontrarse, colaborar y generar nuevas oportunidades. La visión parte de convertir la inclusión en acción real, no solo en una declaración de intenciones.";
 
-type Miembro = { name: string; role: string; country: string; photo?: string };
+type Miembro = {
+  name: string;
+  role: string;
+  country: string;
+  photo?: string;
+  /** Posición del foco de la foto dentro del marco circular (CSS object-position). Default: "center". */
+  photoPosition?: string;
+  /** Zoom de la foto dentro del marco, sin agrandar el círculo (1 = normal, 1.1 = 10% más grande). */
+  photoScale?: number;
+  /** Desplazamiento horizontal de la foto dentro del marco, ej. "10%" o "8px". Positivo = hacia la derecha. */
+  photoOffsetX?: string;
+  /** Desplazamiento vertical de la foto dentro del marco, ej. "10%" o "8px". Positivo = hacia abajo, negativo = hacia arriba. */
+  photoOffsetY?: string;
+};
 
 // Para agregar una foto real: ponela en frontend/public/equipo/ y completá
 // `photo` con esa ruta (ver frontend/public/equipo/README.md). Mientras
 // `photo` quede sin definir, la tarjeta muestra las iniciales en su lugar.
 const LIDERAZGO: Miembro[] = [
-  { name: "Candelaria Zamora", role: "Project Manager", country: "Perú" , photo: "/equipo/candelaria.jpg"}
+  { name: "Candelaria Zamora", role: "Project Manager", country: "Perú" , photo: "/equipo/candelaria.jpg"},
+  { name: "Carol Cayotopa", role: "Leader Social Team", country: "España", photo: "/equipo/carol.jpg", photoPosition: "center 20%" },
 ];
 
 const EQUIPO_TECNICO: Miembro[] = [
@@ -34,13 +48,21 @@ const EQUIPO_TECNICO: Miembro[] = [
 ];
 
 const EQUIPO_SOCIAL: Miembro[] = [
-  { name: "Carol Cayotopa", role: "Social Team", country: "España", photo: "/equipo/carol.jpg"  },
   { name: "Zuli López", role: "Social Team", country: "México", photo: "/equipo/zuly.jpg" },
-  { name: "Yoselyn Mendoza", role: "Social Team", country: "Argentina",photo: "/equipo/yocelyn.jpg" },
+  { name: "Yoselyn Mendoza", role: "Social Team", country: "Argentina",photo: "/equipo/yocelyn.jpg", photoScale: 1.2, photoOffsetX: "5%" },
 ];
 
+type AvatarProps = {
+  name: string;
+  photo?: string;
+  photoPosition?: string;
+  photoScale?: number;
+  photoOffsetX?: string;
+  photoOffsetY?: string;
+};
+
 /** Avatar circular: foto si existe, si no las iniciales del nombre. */
-function Avatar({ name, photo }: { name: string; photo?: string }) {
+function Avatar({ name, photo, photoPosition, photoScale, photoOffsetX, photoOffsetY }: AvatarProps) {
   const initials = name
     .split(" ")
     .filter(Boolean)
@@ -49,13 +71,28 @@ function Avatar({ name, photo }: { name: string; photo?: string }) {
     .join("");
 
   if (photo) {
+    // El zoom/desplazamiento va en un <img> interno a tamaño completo del
+    // marco: así el `transform` agranda/mueve la foto sin agrandar el
+    // círculo exterior (que recorta con overflow-hidden).
+    const transforms: string[] = [];
+    if (photoOffsetX || photoOffsetY) {
+      transforms.push(`translate(${photoOffsetX || "0"}, ${photoOffsetY || "0"})`);
+    }
+    if (photoScale) transforms.push(`scale(${photoScale})`);
+
     return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={photo}
-        alt={name}
-        className="w-24 h-24 rounded-full object-cover ring-2 ring-outline-variant/40"
-      />
+      <div className="w-24 h-24 rounded-full overflow-hidden ring-2 ring-outline-variant/40">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={photo}
+          alt={name}
+          className="w-full h-full object-cover"
+          style={{
+            objectPosition: photoPosition || "center",
+            transform: transforms.length ? transforms.join(" ") : undefined,
+          }}
+        />
+      </div>
     );
   }
 
@@ -79,7 +116,14 @@ function GrupoEquipo({ nombre, miembros }: { nombre: string; miembros: Miembro[]
       <ul role="list" className="flex flex-wrap items-start justify-center sm:justify-start gap-x-10 gap-y-8">
         {miembros.map((persona) => (
           <li key={persona.name} className="flex flex-col items-center gap-2 w-36 text-center">
-            <Avatar name={persona.name} photo={persona.photo} />
+            <Avatar
+              name={persona.name}
+              photo={persona.photo}
+              photoPosition={persona.photoPosition}
+              photoScale={persona.photoScale}
+              photoOffsetX={persona.photoOffsetX}
+              photoOffsetY={persona.photoOffsetY}
+            />
             <span className="text-sm font-semibold text-on-surface">{persona.name}</span>
             <span className="text-xs text-on-surface-variant">{persona.role}</span>
             <span className="text-xs text-on-surface-variant">{persona.country}</span>
