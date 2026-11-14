@@ -14,6 +14,7 @@
 const { ALLOWED_TRANSITIONS } = require("./verification.schema");
 const { appBaseUrl } = require("../../config");
 const emailService = require("../../services/email.service");
+const auditService = require("../audit/audit.service");
 const {
   buildInStudyEmail,
   buildAcceptedEmail,
@@ -117,6 +118,19 @@ function parseDbError(error) {
     return { isUniqueViolation: false, isForeignKeyViolation: true, field: "catalogId" };
   }
   return { isUniqueViolation: false, isForeignKeyViolation: false, field: null };
+}
+
+/**
+ * Normaliza un solicitante a la forma { userId, role }.
+ * Acepta un id suelto por compatibilidad con llamadas internas y tests.
+ * @param {{ userId: string, role: string }|string} requester
+ * @returns {{ userId: string, role: string }}
+ */
+function normalizeActor(requester) {
+  if (typeof requester === "string") {
+    return { userId: requester, role: "admin" };
+  }
+  return requester;
 }
 
 // ---------------------------------------------------------------------------
@@ -253,12 +267,18 @@ async function registerVolunteer(payload, userId, schema, repository) {
  * y crea el registro en verification_documents.
  *
  * @param {import("./verification.types").DocumentUploadInput & { fileBuffer: Buffer }} payload
- * @param {string} ownerId
+ * @param {{ userId: string, role: string }} requester
  * @param {Object} repository
  * @returns {Promise<import("./verification.types").ServiceResult>}
  */
-async function uploadDocument(payload, ownerId, repository) {
+async function uploadDocument(payload, requester, repository) {
   const { uploadDocument: uploadToR2 } = require("../../services/storage");
+  const ownerId = requester.userId;
+
+  const previousDocuments = await repository.findDocumentsByOwner(ownerId);
+  const previous = previousDocuments.find(
+    (doc) => doc.documentTypeId === payload.documentTypeId && doc.status !== "rejected",
+  ) ?? null;
 
   try {
     // 1. Subir archivo a R2 → carpeta documents_verifications/<ownerId>/
@@ -271,9 +291,30 @@ async function uploadDocument(payload, ownerId, repository) {
 
     // 2. Registrar en la base de datos
     const document = await repository.withTransaction(async (client) => {
-      return repository.insertVerificationDocument(
+      const created = await repository.insertVerificationDocument(
         client, ownerId, payload.documentTypeId, storageKey,
       );
+
+      await auditService.record(client, {
+        actor: requester,
+        action: previous ? "replace" : "create",
+        entityType: "verification_document",
+        entityId: created.id,
+        before: previous
+          ? {
+              documentId: previous.id,
+              documentTypeId: previous.documentTypeId,
+              status: previous.status,
+            }
+          : null,
+        after: {
+          documentId: created.id,
+          documentTypeId: created.documentTypeId,
+          status: created.status,
+        },
+      });
+
+      return created;
     });
 
     return {
@@ -355,23 +396,41 @@ async function getDownloadUrl(documentId, requester, repository) {
  *
  * @param {number} documentId
  * @param {import("./verification.types").DocumentReviewInput} review
- * @param {string} reviewerId
+ * @param {{ userId: string, role: string }|string} requester
  * @param {Object} repository
  * @returns {Promise<import("./verification.types").ServiceResult>}
  */
-async function reviewDocument(documentId, review, reviewerId, repository) {
+async function reviewDocument(documentId, review, requester, repository) {
+  const actor = normalizeActor(requester);
   const document = await repository.findDocumentById(documentId);
 
   if (!document) {
     return { errors: ["Documento no encontrado"], status: 404 };
   }
 
-  const updated = await repository.updateDocumentStatus(
-    documentId,
-    review.status,
-    review.reason || null,
-    reviewerId,
-  );
+  const updated = await repository.withTransaction(async (client) => {
+    const result = await repository.updateDocumentStatus(
+      client, documentId, review.status, review.reason || null, actor.userId,
+    );
+
+    await auditService.record(client, {
+      actor,
+      action: "review",
+      entityType: "verification_document",
+      entityId: documentId,
+      before: {
+        status: document.status,
+        rejectionReason: document.rejectionReason ?? null,
+      },
+      after: {
+        status: result.status,
+        rejectionReason: result.rejectionReason ?? null,
+      },
+      reason: review.reason || null,
+    });
+
+    return result;
+  });
 
   return { data: updated };
 }
@@ -391,7 +450,7 @@ async function reviewDocument(documentId, review, reviewerId, repository) {
  *
  * @param {number} verificationId
  * @param {import("./verification.types").TransitionInput} transition
- * @param {string} reviewerId — UUID del admin que realiza la transición
+ * @param {{ userId: string, role: string }|string} requester — Admin que realiza la transición
  * @param {Object} repository
  * @returns {Promise<import("./verification.types").ServiceResult>}
  */
@@ -450,7 +509,10 @@ async function notifyTransitionOutcome({ verificationId, toStatus, reason, repos
   }
 }
 
-async function transitionVerification(verificationId, transition, reviewerId, repository) {
+async function transitionVerification(verificationId, transition, requester, repository) {
+  const actor = normalizeActor(requester);
+  const reviewerId = actor.userId;
+
   // 1. Buscar la solicitud actual
   const current = await repository.findVerificationById(verificationId);
 
@@ -479,6 +541,16 @@ async function transitionVerification(verificationId, transition, reviewerId, re
         client, verificationId, current.status, transition.toStatus,
         reviewerId, transition.reason || null,
       );
+
+      await auditService.record(client, {
+        actor,
+        action: "transition",
+        entityType: "verification_request",
+        entityId: verificationId,
+        before: { status: current.status },
+        after: { status: updated.status },
+        reason: transition.reason || null,
+      });
 
       // Efecto secundario: si se acepta, activar la cuenta del usuario
       if (transition.toStatus === "aceptada") {

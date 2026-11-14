@@ -649,14 +649,15 @@ const UPDATE_DOCUMENT_STATUS = `
 
 /**
  * Actualiza el estado de revisión de un documento.
+ * @param {import("pg").PoolClient|null} client — Cliente de transacción (opcional)
  * @param {number} documentId
  * @param {string} status
  * @param {string|null} reason
  * @param {string|null} reviewerId
  * @returns {Promise<Object>}
  */
-async function updateDocumentStatus(documentId, status, reason, reviewerId) {
-  const result = await db.query(UPDATE_DOCUMENT_STATUS, [
+async function updateDocumentStatus(client, documentId, status, reason, reviewerId) {
+  const result = await (client || db).query(UPDATE_DOCUMENT_STATUS, [
     status,
     reason || null,
     reviewerId || null,

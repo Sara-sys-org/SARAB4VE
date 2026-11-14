@@ -149,7 +149,7 @@ function approveUser(service, repository) {
     try {
       const result = await service.approveUser(
         req.params.id,
-        req.user.userId, // El admin que aprueba
+        req.user, // El admin que aprueba
         repository,
       );
 
@@ -178,6 +178,7 @@ function rejectUser(service, repository) {
     try {
       const result = await service.rejectUser(
         req.params.id,
+        req.user,
         repository,
       );
 

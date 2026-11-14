@@ -7,6 +7,7 @@ const usersRouter = require("./modules/users/users.routes");
 const emergencyAttendeesRouter = require("./modules/emergencyAttendees/emergencyAttendees.routes");
 const helpRequestAttendeesRouter = require("./modules/helpRequestAttendees/helpRequestAttendees.routes");
 const verificationRouter = require("./modules/verification/verification.routes");
+const auditRouter = require("./modules/audit/audit.routes");
 const { conversationsRoutes, messagesRoutes } = require("./modules/conversations");
 const { nodeEnv } = require("./config");
 
@@ -25,6 +26,7 @@ app.use("/api/help-requests", helpRequestsRouter);
 app.use("/api/emergencies", emergenciesRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/users", usersRouter);
+app.use("/api/audit", auditRouter);
 
 // Chat module
 app.use("/api/conversations", conversationsRoutes);

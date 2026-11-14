@@ -194,7 +194,7 @@ function uploadDocument(service, repository) {
           ...validation.data,
           fileBuffer: req.file.buffer,
         },
-        req.user.userId,
+        req.user,
         repository,
       );
 
@@ -307,7 +307,7 @@ function reviewDocument(service, repository) {
       const result = await service.reviewDocument(
         id,
         validation.data,
-        req.user.userId,
+        req.user,
         repository,
       );
 
@@ -391,7 +391,7 @@ function transitionVerification(service, repository) {
       const result = await service.transitionVerification(
         id,
         validation.data,
-        req.user.userId,
+        req.user,
         repository,
       );
 

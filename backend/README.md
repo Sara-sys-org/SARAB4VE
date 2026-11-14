@@ -53,6 +53,7 @@ npm start
 - `GET /api/users/:id/volunteer-profile` — perfil completo de voluntario (admin)
 - `PATCH /api/users/:id/organization-profile` — corregir datos de organización (admin)
 - `PATCH /api/users/:id/volunteer-profile` — corregir datos de voluntario (admin)
+- `GET /api/audit` — historial de acciones administrativas (admin)
 
 ## Reporte de emergencias por voz
 
@@ -197,6 +198,24 @@ Matiz: si en el perfil de voluntario se cambia `volunteerType`, el backend
 sincroniza el `entity_type` de la solicitud (`volunteer_professional` /
 `volunteer_non_professional`) para mantener la coherencia con el checklist de
 documentos, **sin tocar el estado**.
+
+## Historial de acciones administrativas
+
+Cada edición, alta, reemplazo o revisión de un registro deja una fila
+append-only en `audit_log` con el actor (`actor_id`, `actor_role`), la fecha
+(`occurred_at`), la acción y el registro afectado (`entity_type`, `entity_id`).
+
+- `GET /api/audit` — solo `admin`. Filtros: `entityType`, `entityId`, `action`,
+  `actorId`, `from`, `to`, `page`, `limit` (máximo 100).
+- El módulo no expone `POST`/`PATCH`/`PUT`/`DELETE`: el historial es de solo
+  lectura desde la API. La migración agrega además un trigger que bloquea
+  `UPDATE`, `DELETE` y `TRUNCATE` sobre la tabla.
+- `before_data` y `after_data` guardan **solo los campos que cambiaron**. Los
+  textos se truncan a 2000 caracteres y los arreglos a 50 ítems; las claves
+  sensibles (`passwordHash`, `token`, `storageKey`, etc.) nunca se persisten.
+  Los cambios de contraseña se registran como `credentialsChanged`, sin el hash.
+- Aplicar `sql/migrations/010_add_audit_log.sql` antes de desplegar: si la tabla
+  no existe, las mutaciones auditadas fallan.
 
 ## Ejemplo de payload
 

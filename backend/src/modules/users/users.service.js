@@ -4,6 +4,7 @@
  */
 const bcrypt = require("bcrypt");
 const { ROLES, STATUSES } = require("./users.schema");
+const auditService = require("../audit/audit.service");
 
 /** Costo del hash bcrypt (12 rondas ≈ buena seguridad sin ser muy lento). */
 const BCRYPT_ROUNDS = 12;
@@ -19,6 +20,19 @@ const BCRYPT_ROUNDS = 12;
  */
 async function hashPassword(plainPassword) {
   return bcrypt.hash(plainPassword, BCRYPT_ROUNDS);
+}
+
+/**
+ * Normaliza un solicitante a la forma { userId, role }.
+ * Acepta un id suelto por compatibilidad con llamadas internas.
+ * @param {{ userId: string, role: string }|string} requester
+ * @returns {{ userId: string, role: string }}
+ */
+function normalizeActor(requester) {
+  if (typeof requester === "string") {
+    return { userId: requester, role: "admin" };
+  }
+  return requester;
 }
 
 /**
@@ -223,6 +237,40 @@ async function updateUser(targetUserId, updates, requester, repository) {
     };
   }
 
+  let existingCitizenProfile = null;
+  if (hasDisabilityUpdates) {
+    existingCitizenProfile = await repository.findCitizenProfileById(targetUserId);
+  }
+
+  const auditBefore = {
+    fullName: existingUser.fullName ?? null,
+    email: existingUser.email ?? null,
+    phone: existingUser.phone ?? null,
+    zone: existingUser.zone ?? null,
+    location: existingUser.location ?? null,
+  };
+  const auditAfter = { ...auditBefore };
+
+  if (repoUpdates.fullName !== undefined) auditAfter.fullName = repoUpdates.fullName;
+  if (repoUpdates.email !== undefined) auditAfter.email = repoUpdates.email;
+  if (repoUpdates.phone !== undefined) auditAfter.phone = repoUpdates.phone;
+  if (repoUpdates.zone !== undefined) auditAfter.zone = repoUpdates.zone;
+  if (repoUpdates.location !== undefined) auditAfter.location = repoUpdates.location;
+
+  if (repoUpdates.passwordHash !== undefined) {
+    auditBefore.credentialsChanged = false;
+    auditAfter.credentialsChanged = true;
+  }
+
+  if (hasDisabilityUpdates) {
+    auditBefore.disabilityType = existingCitizenProfile?.disabilityType ?? null;
+    auditBefore.disabilitySubcategory = existingCitizenProfile?.disabilitySubcategory ?? null;
+    auditBefore.communicationMode = existingCitizenProfile?.communicationMode ?? null;
+    auditAfter.disabilityType = updates.disabilityType ?? null;
+    auditAfter.disabilitySubcategory = updates.disabilitySubcategory ?? null;
+    auditAfter.communicationMode = updates.communicationMode ?? null;
+  }
+
   try {
     const updatedUser = await repository.withTransaction(async (client) => {
       const user = await repository.updateUser(client, targetUserId, repoUpdates);
@@ -234,6 +282,15 @@ async function updateUser(targetUserId, updates, requester, repository) {
           communicationMode: updates.communicationMode,
         });
       }
+
+      await auditService.record(client, {
+        actor: requester,
+        action: "update",
+        entityType: "user",
+        entityId: targetUserId,
+        before: auditBefore,
+        after: auditAfter,
+      });
 
       return user;
     });
@@ -267,11 +324,12 @@ async function updateUser(targetUserId, updates, requester, repository) {
  * Solo accesible por administradores.
  *
  * @param {string} targetUserId — ID del usuario a aprobar
- * @param {string} approvedBy — UUID del admin que aprueba
+ * @param {{ userId: string, role: string }} requester — Admin que aprueba
  * @param {Object} repository — users.repository
  * @returns {Promise<{ data?: Object, status: number, errors?: string[] }>}
  */
-async function approveUser(targetUserId, approvedBy, repository) {
+async function approveUser(targetUserId, requester, repository) {
+  const actor = normalizeActor(requester);
   // Verificar que el usuario existe
   const existingUser = await repository.findUserById(targetUserId);
   if (!existingUser) {
@@ -290,7 +348,18 @@ async function approveUser(targetUserId, approvedBy, repository) {
 
   // Ejecutar en transacción
   const updatedUser = await repository.withTransaction(async (client) => {
-    return repository.updateUserStatus(client, targetUserId, "approved", approvedBy);
+    const user = await repository.updateUserStatus(client, targetUserId, "approved", actor.userId);
+
+    await auditService.record(client, {
+      actor,
+      action: "approve",
+      entityType: "user",
+      entityId: targetUserId,
+      before: { status: existingUser.status },
+      after: { status: "approved" },
+    });
+
+    return user;
   });
 
   return { data: updatedUser, status: 200 };
@@ -305,10 +374,12 @@ async function approveUser(targetUserId, approvedBy, repository) {
  * Solo accesible por administradores.
  *
  * @param {string} targetUserId — ID del usuario a rechazar
+ * @param {{ userId: string, role: string }} requester — Admin que rechaza
  * @param {Object} repository — users.repository
  * @returns {Promise<{ data?: Object, status: number, errors?: string[] }>}
  */
-async function rejectUser(targetUserId, repository) {
+async function rejectUser(targetUserId, requester, repository) {
+  const actor = normalizeActor(requester);
   // Verificar que el usuario existe
   const existingUser = await repository.findUserById(targetUserId);
   if (!existingUser) {
@@ -327,7 +398,18 @@ async function rejectUser(targetUserId, repository) {
 
   // Ejecutar en transacción (no necesita approvedBy para rechazo)
   const updatedUser = await repository.withTransaction(async (client) => {
-    return repository.updateUserStatus(client, targetUserId, "rejected", null);
+    const user = await repository.updateUserStatus(client, targetUserId, "rejected", null);
+
+    await auditService.record(client, {
+      actor,
+      action: "reject",
+      entityType: "user",
+      entityId: targetUserId,
+      before: { status: existingUser.status },
+      after: { status: "rejected" },
+    });
+
+    return user;
   });
 
   return { data: updatedUser, status: 200 };
@@ -490,6 +572,62 @@ async function updateOrganizationProfile(organizationId, payload, requester, rep
       }))
     : null;
 
+  const auditBefore = {};
+  const auditAfter = {};
+
+  for (const key of Object.keys(userFields)) {
+    auditBefore[key] = existingUser[key] ?? null;
+    auditAfter[key] = userFields[key];
+  }
+
+  if (Object.keys(detailsFields).length > 0) {
+    const currentDetails = await repository.findUserDetailsById(organizationId);
+    for (const key of Object.keys(detailsFields)) {
+      auditBefore[key] = currentDetails?.[key] ?? null;
+      auditAfter[key] = detailsFields[key];
+    }
+  }
+
+  if (Object.keys(profileFields).length > 0) {
+    const currentProfile = await repository.findOrganizationProfileById(organizationId);
+    for (const key of Object.keys(profileFields)) {
+      auditBefore[key] = currentProfile?.[key] ?? null;
+      auditAfter[key] = profileFields[key];
+    }
+  }
+
+  if (legalRepresentatives !== null) {
+    const currentReps = (await repository.findLegalRepresentatives(organizationId)).map((rep) => ({
+      fullName: rep.fullName,
+      position: rep.position ?? null,
+      phone: rep.phone ?? null,
+      email: rep.email ?? null,
+    }));
+    auditBefore.legalRepresentatives = currentReps;
+    auditAfter.legalRepresentatives = legalRepresentatives;
+  }
+
+  if (payload.disabilityTypeIds !== undefined) {
+    auditBefore.disabilityTypeIds = (await repository.findOrganizationDisabilityTypes(organizationId))
+      .map((row) => row.id)
+      .sort((a, b) => a - b);
+    auditAfter.disabilityTypeIds = [...payload.disabilityTypeIds].sort((a, b) => a - b);
+  }
+
+  if (payload.serviceIds !== undefined) {
+    auditBefore.serviceIds = (await repository.findOrganizationServices(organizationId))
+      .map((row) => row.id)
+      .sort((a, b) => a - b);
+    auditAfter.serviceIds = [...payload.serviceIds].sort((a, b) => a - b);
+  }
+
+  if (auditBefore.foundedAt !== undefined) {
+    auditBefore.foundedAt = auditService.normalizeDateOnly(auditBefore.foundedAt);
+  }
+  if (auditAfter.foundedAt !== undefined) {
+    auditAfter.foundedAt = auditService.normalizeDateOnly(auditAfter.foundedAt);
+  }
+
   try {
     await repository.withTransaction(async (client) => {
       if (Object.keys(userFields).length > 0) {
@@ -514,6 +652,15 @@ async function updateOrganizationProfile(organizationId, payload, requester, rep
           client, "organization_services", organizationId, payload.serviceIds,
         );
       }
+
+      await auditService.record(client, {
+        actor: requester,
+        action: "update",
+        entityType: "organization_profile",
+        entityId: organizationId,
+        before: auditBefore,
+        after: auditAfter,
+      });
     });
   } catch (error) {
     const { isUniqueViolation, field } = parseUniqueViolation(error);
@@ -673,6 +820,51 @@ async function updateVolunteerProfile(volunteerId, payload, requester, repositor
   if (payload.hasPriorExperience !== undefined) profileFields.hasPriorExperience = payload.hasPriorExperience;
   if (payload.transportAvailable !== undefined) profileFields.transportAvailable = payload.transportAvailable;
 
+  const auditBefore = {};
+  const auditAfter = {};
+
+  for (const key of Object.keys(userFields)) {
+    auditBefore[key] = existingUser[key] ?? null;
+    auditAfter[key] = userFields[key];
+  }
+
+  if (Object.keys(detailsFields).length > 0) {
+    const currentDetails = await repository.findUserDetailsById(volunteerId);
+    for (const key of Object.keys(detailsFields)) {
+      auditBefore[key] = currentDetails?.[key] ?? null;
+      auditAfter[key] = detailsFields[key];
+    }
+  }
+
+  if (Object.keys(profileFields).length > 0) {
+    const currentProfile = await repository.findVolunteerProfileById(volunteerId);
+    for (const key of Object.keys(profileFields)) {
+      auditBefore[key] = currentProfile?.[key] ?? null;
+      auditAfter[key] = profileFields[key];
+    }
+  }
+
+  if (payload.interestAreaIds !== undefined) {
+    auditBefore.interestAreaIds = (await repository.findVolunteerInterestAreas(volunteerId))
+      .map((row) => row.id)
+      .sort((a, b) => a - b);
+    auditAfter.interestAreaIds = [...payload.interestAreaIds].sort((a, b) => a - b);
+  }
+
+  if (payload.experienceCategoryIds !== undefined) {
+    auditBefore.experienceCategoryIds = (await repository.findVolunteerExperience(volunteerId))
+      .map((row) => row.id)
+      .sort((a, b) => a - b);
+    auditAfter.experienceCategoryIds = [...payload.experienceCategoryIds].sort((a, b) => a - b);
+  }
+
+  if (auditBefore.birthDate !== undefined) {
+    auditBefore.birthDate = auditService.normalizeDateOnly(auditBefore.birthDate);
+  }
+  if (auditAfter.birthDate !== undefined) {
+    auditAfter.birthDate = auditService.normalizeDateOnly(auditAfter.birthDate);
+  }
+
   try {
     await repository.withTransaction(async (client) => {
       if (Object.keys(userFields).length > 0) {
@@ -700,6 +892,15 @@ async function updateVolunteerProfile(volunteerId, payload, requester, repositor
           client, "volunteer_experience", volunteerId, payload.experienceCategoryIds,
         );
       }
+
+      await auditService.record(client, {
+        actor: requester,
+        action: "update",
+        entityType: "volunteer_profile",
+        entityId: volunteerId,
+        before: auditBefore,
+        after: auditAfter,
+      });
     });
   } catch (error) {
     const { isUniqueViolation, field } = parseUniqueViolation(error);
